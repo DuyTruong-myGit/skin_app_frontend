@@ -4,6 +4,7 @@ import 'package:app/services/api_service.dart'; // Đổi 'app' thành tên dự
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'register_screen.dart';
 import 'main_screen.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -46,7 +47,21 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text,
       );
 
+      // 1. Lưu Token
       await _storage.write(key: 'token', value: token);
+
+      // 2. Giải mã Token
+      Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+
+      // 3. Lấy role (mặc định là 'user' nếu không có)
+      String userRole = decodedToken['role'] ?? 'user';
+
+      // === THÊM VÀO: Lưu cả User ID ===
+      String userId = decodedToken['userId'].toString();
+      await _storage.write(key: 'userId', value: userId);
+
+      // 4. Lưu Role
+      await _storage.write(key: 'role', value: userRole);
 
       if (mounted) {
         Navigator.of(context).pushReplacement(

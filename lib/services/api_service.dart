@@ -227,4 +227,120 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> getAdminStatistics() async {
+    try {
+      final response = await _dio.get(
+        '/admin/statistics',
+        options: await _getAuthHeaders(), // Đã có auth + admin check
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.statusCode != 401) {
+        throw e.response!.data['message'];
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
+  /// (Admin) Lấy danh sách user (CÓ TÌM KIẾM)
+  Future<List<Map<String, dynamic>>> getAdminUserList(String searchTerm) async { // <-- SỬA 1: Thêm tham số
+    try {
+      final response = await _dio.get(
+        '/admin/users', // <-- SỬA 2: Path là tham số đầu tiên
+        queryParameters: {'search': searchTerm}, // <-- SỬA 3: queryParameters là tham số named
+        options: await _getAuthHeaders(),
+      );
+      // Trả về List<Map>
+      return List<Map<String, dynamic>>.from(response.data);
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.statusCode != 401) {
+        throw e.response!.data['message'];
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
+  /// (Admin) Lấy lịch sử của user cụ thể
+  Future<List<DiagnosisRecord>> getAdminHistoryForUser(int userId) async {
+    try {
+      final response = await _dio.get(
+        '/admin/history/$userId', // <-- Route mới
+        options: await _getAuthHeaders(),
+      );
+
+      List<DiagnosisRecord> historyList = (response.data as List)
+          .map((item) => DiagnosisRecord.fromJson(item))
+          .toList();
+      return historyList;
+
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.statusCode != 401) {
+        throw e.response!.data['message'];
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định: $e';
+    }
+  }
+
+  /// (Admin) Cập nhật trạng thái
+  Future<String> updateUserStatus(int userId, String status) async {
+    try {
+      final response = await _dio.put(
+        '/admin/users/$userId/status',
+        data: {'status': status},
+        options: await _getAuthHeaders(),
+      );
+      return response.data['message'];
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.statusCode != 401) {
+        throw e.response!.data['message'];
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
+  /// (Admin) Cập nhật quyền
+  Future<String> updateUserRole(int userId, String role) async {
+    try {
+      final response = await _dio.put(
+        '/admin/users/$userId/role',
+        data: {'role': role},
+        options: await _getAuthHeaders(),
+      );
+      return response.data['message'];
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.statusCode != 401) {
+        throw e.response!.data['message'];
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
+  /// (Admin) Xóa user
+  Future<String> deleteUser(int userId) async {
+    try {
+      final response = await _dio.delete(
+        '/admin/users/$userId',
+        options: await _getAuthHeaders(),
+      );
+      return response.data['message'];
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.statusCode != 401) {
+        throw e.response!.data['message'];
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
 }

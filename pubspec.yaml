@@ -49,6 +49,12 @@ dependencies:
   #thư viện intl để định dạng ngày.
   intl: ^0.18.1
 
+  # Thư viện giải mã Token (để đọc role)
+  jwt_decoder: ^2.0.1
+
+  # Thư viện vẽ biểu đồ
+  fl_chart: ^0.68.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

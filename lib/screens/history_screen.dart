@@ -6,7 +6,13 @@ import 'dart:convert'; // Để giải mã JSON
 import 'package:app/screens/result_screen.dart'; // Màn hình kết quả
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key});
+  // Nếu 2 biến này null, nghĩa là "Lịch sử của tôi"
+  // Nếu có, nghĩa là "Admin xem lịch sử của user..."
+  final int? userId;
+  final String? userName;
+  // =============================
+
+  const HistoryScreen({super.key, this.userId, this.userName});
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -21,17 +27,29 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   void initState() {
     super.initState();
-    // SỬA LỖI 2: Gán Future trực tiếp, KHÔNG gọi hàm refresh hay setState
-    _historyFuture = _apiService.getHistory();
+    _refreshHistory(isInit: true); // Tải lần đầu
   }
 
-  // SỬA LỖI 3: Hàm refresh BÂY GIỜ mới dùng setState
-  // Hàm này chỉ được gọi bởi RefreshIndicator
-  Future<void> _refreshHistory() async {
-    setState(() {
-      // Gán một Future MỚI cho FutureBuilder
-      _historyFuture = _apiService.getHistory();
-    });
+  Future<void> _refreshHistory({bool isInit = false}) async {
+    // Chỉ setState nếu không phải lần đầu (tránh lỗi)
+    if (!isInit) {
+      setState(() {
+        _historyFuture = _fetchData();
+      });
+    } else {
+      _historyFuture = _fetchData();
+    }
+  }
+
+  // Tách logic gọi API ra
+  Future<List<DiagnosisRecord>> _fetchData() {
+    if (widget.userId != null) {
+      // (Admin) Lấy lịch sử của user cụ thể
+      return _apiService.getAdminHistoryForUser(widget.userId!);
+    } else {
+      // (User) Lấy lịch sử của chính mình
+      return _apiService.getHistory();
+    }
   }
 
   String _formatDate(DateTime date) {
@@ -39,17 +57,47 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   void _viewHistoryDetail(DiagnosisRecord record) {
-    // ... (Code xử lý _viewHistoryDetail giữ nguyên)
+    if (record.resultJson == null || record.resultJson!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không tìm thấy dữ liệu chi tiết.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final Map<String, dynamic> resultData = json.decode(record.resultJson!);
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ResultScreen(diagnosisResult: resultData),
+        ),
+      );
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi giải mã dữ liệu: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lịch sử Chẩn đoán'),
+        title: Text(widget.userId == null
+            ? 'Lịch sử Chẩn đoán'
+            : 'Lịch sử của ${widget.userName}'
+        ),
       ),
       body: RefreshIndicator(
-        onRefresh: _refreshHistory, // Gọi hàm tải lại khi kéo
+        onRefresh: () => _refreshHistory(), // onRefresh không cần isInit
         child: FutureBuilder<List<DiagnosisRecord>>(
           future: _historyFuture, // Luôn luôn có 1 future hợp lệ
           builder: (context, snapshot) {
