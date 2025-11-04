@@ -150,4 +150,81 @@ class ApiService {
     }
   }
 
+  /// Lấy thông tin hồ sơ
+  Future<Map<String, dynamic>> getProfile() async {
+    try {
+      final response = await _dio.get(
+        '/profile',
+        options: await _getAuthHeaders(),
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.statusCode != 401) {
+        throw e.response!.data['message'];
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
+  /// Cập nhật hồ sơ (fullName)
+  Future<String> updateProfile(String fullName) async {
+    try {
+      final response = await _dio.put(
+        '/profile',
+        data: {'fullName': fullName},
+        options: await _getAuthHeaders(),
+      );
+      return response.data['message']; // "Cập nhật hồ sơ thành công."
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.statusCode != 401) {
+        throw e.response!.data['message'];
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
+  /// Yêu cầu gửi mã reset
+  Future<String> requestPasswordReset() async {
+    try {
+      final response = await _dio.post(
+        '/auth/request-password-reset',
+        options: await _getAuthHeaders(),
+      );
+      return response.data['message']; // "Đã gửi mã..."
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.statusCode != 401) {
+        throw e.response!.data['message'];
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
+  /// Gửi mã 6 số và mật khẩu mới
+  Future<String> resetPasswordWithCode(String code, String newPassword) async {
+    try {
+      final response = await _dio.post(
+        '/auth/reset-password-with-code',
+        data: {
+          'code': code,
+          'newPassword': newPassword,
+        },
+        options: await _getAuthHeaders(), // Phải đăng nhập để làm việc này
+      );
+      return response.data['message']; // "Đổi mật khẩu thành công!"
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.statusCode != 401) {
+        throw e.response!.data['message'];
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
 }
