@@ -1,35 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:image_picker/image_picker.dart'; // <-- THÊM VÀO
-import 'package:app/services/api_service.dart'; // <-- THÊM VÀO
-import 'package:app/screens/result_screen.dart'; // <-- THÊM VÀO
-import 'login_screen.dart'; // Import màn hình Login
-import 'package:app/screens/history_screen.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:app/services/api_service.dart';
+import 'package:app/screens/result_screen.dart';
 
-class HomeScreen extends StatefulWidget { // SỬA: Chuyển sang StatefulWidget
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> { // SỬA: Thêm State
-  final _storage = const FlutterSecureStorage();
-  final ImagePicker _picker = ImagePicker(); // Thêm image picker
-  final ApiService _apiService = ApiService(); // Thêm api service
+class _HomeScreenState extends State<HomeScreen> {
+  final ImagePicker _picker = ImagePicker();
+  final ApiService _apiService = ApiService();
 
-  bool _isLoading = false; // Thêm trạng thái loading
+  bool _isLoading = false;
 
-  // Hàm Đăng xuất
-  Future<void> _handleLogout(BuildContext context) async {
-    await _storage.delete(key: 'token');
-    if (!context.mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-    );
-  }
+  // Hàm Đăng xuất (ĐÃ CHUYỂN SANG PROFILE_SCREEN)
 
-  // === THÊM HÀM CHỌN ẢNH VÀ CHẨN ĐOÁN ===
+  // Hàm chọn ảnh và chẩn đoán
   Future<void> _startDiagnosis() async {
     // 1. Hiển thị dialog chọn Nguồn ảnh
     final source = await showDialog<ImageSource>(
@@ -49,11 +38,11 @@ class _HomeScreenState extends State<HomeScreen> { // SỬA: Thêm State
       ),
     );
 
-    if (source == null) return; // Người dùng hủy
+    if (source == null) return;
 
     // 2. Lấy ảnh
     final XFile? image = await _picker.pickImage(source: source);
-    if (image == null) return; // Người dùng hủy chọn ảnh
+    if (image == null) return;
 
     // 3. Bắt đầu Loading
     setState(() { _isLoading = true; });
@@ -64,6 +53,7 @@ class _HomeScreenState extends State<HomeScreen> { // SỬA: Thêm State
 
       // 5. Chuyển sang Màn hình Kết quả
       if (mounted) {
+        // Dùng Navigator.push (không phải replacement)
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -72,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> { // SỬA: Thêm State
         );
       }
     } catch (e) {
-      // 6. Hiển thị lỗi (lỗi 401 đã tự xử lý)
+      // 6. Hiển thị lỗi
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -86,52 +76,53 @@ class _HomeScreenState extends State<HomeScreen> { // SỬA: Thêm State
       if (mounted) setState(() { _isLoading = false; });
     }
   }
-  // ===============================
 
   @override
   Widget build(BuildContext context) {
+    // SỬA: Không cần Scaffold vì đã có ở MainScreen,
+    // nhưng thêm Scaffold để có AppBar
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Trang chủ'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.history),
-            tooltip: 'Lịch sử', // Chú thích khi giữ
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const HistoryScreen()),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _handleLogout(context),
-          )
-        ],
+        title: const Text('Chẩn đoán'),
       ),
       body: Center(
-        child: _isLoading // HIỂN THỊ LOADING NẾU ĐANG GỌI API
+        child: _isLoading
             ? const CircularProgressIndicator()
-            : Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Đăng nhập thành công!',
-              style: TextStyle(fontSize: 24, color: Colors.grey[700]),
-            ),
-            const SizedBox(height: 50),
-
-            ElevatedButton.icon(
-              icon: const Icon(Icons.camera_alt),
-              label: const Text('Bắt đầu Chẩn đoán'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                textStyle: const TextStyle(fontSize: 18),
+            : Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Thêm Icon y tế
+              Icon(
+                Icons.document_scanner_outlined,
+                size: 100,
+                color: Colors.blue[200],
               ),
-              onPressed: _startDiagnosis, // SỬA: Gọi hàm chẩn đoán
-            ),
-          ],
+              const SizedBox(height: 20),
+              Text(
+                'Bắt đầu chẩn đoán da',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Tải ảnh lên để nhận kết quả phân tích từ AI.',
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 50),
+
+              // Nút Bắt đầu (Đã dùng theme chung)
+              ElevatedButton.icon(
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: const Text('Tải ảnh lên'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+                onPressed: _startDiagnosis,
+              ),
+            ],
+          ),
         ),
       ),
     );

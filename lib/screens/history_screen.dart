@@ -25,7 +25,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   String _formatDate(DateTime date) {
-    return DateFormat('HH:mm, Ngày dd/MM/yyyy').format(date);
+    return DateFormat("HH:mm, 'Ngày' dd/MM/yyyy").format(date);
   }
 
   // Hàm xử lý khi nhấn vào mục lịch sử

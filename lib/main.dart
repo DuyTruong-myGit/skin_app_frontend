@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app/config/app_theme.dart';
 import 'package:app/screens/splash_screen.dart';
 import 'package:app/services/navigation_service.dart';
 
@@ -14,10 +15,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       navigatorKey: NavigationService.navigatorKey,
       title: 'Chẩn đoán Da',
-      theme: ThemeData(
-        primarySwatch: Colors.blue, // Màu chủ đạo
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
+      theme: AppTheme.lightTheme,
       debugShowCheckedModeBanner: false, // Tắt banner "Debug"
       home: SplashScreen(),
     );

@@ -3,6 +3,7 @@ import 'package:app/screens/home_screen.dart'; // Đổi 'app' thành tên dự 
 import 'package:app/services/api_service.dart'; // Đổi 'app' thành tên dự án của bạn nếu khác
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'register_screen.dart';
+import 'main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -49,7 +50,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(builder: (context) => const MainScreen()),
         );
       }
 
