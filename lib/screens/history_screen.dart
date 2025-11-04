@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:app/models/diagnosis_record.dart'; // Đổi 'app' nếu cần
 import 'package:app/services/api_service.dart'; // Đổi 'app' nếu cần
 import 'package:intl/intl.dart';
-import 'dart:convert'; // <-- THÊM VÀO: Để giải mã JSON
-import 'package:app/screens/result_screen.dart';
+import 'dart:convert'; // Để giải mã JSON
+
+// SỬA LỖI Ở ĐÂY: Xóa chữ 'package' bị lặp
+import 'package:app/screens/result_screen.dart'; // Màn hình kết quả
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -26,11 +28,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return DateFormat('HH:mm, Ngày dd/MM/yyyy').format(date);
   }
 
-  // === THÊM HÀM XỬ LÝ KHI NHẤN VÀO MỤC LỊCH SỬ ===
+  // Hàm xử lý khi nhấn vào mục lịch sử
   void _viewHistoryDetail(DiagnosisRecord record) {
-    // 1. Kiểm tra xem có dữ liệu JSON để hiển thị không
     if (record.resultJson == null || record.resultJson!.isEmpty) {
-      // Hiển thị thông báo nếu không có dữ liệu (hiếm khi xảy ra)
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Không tìm thấy dữ liệu chi tiết.'),
@@ -41,10 +41,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
 
     try {
-      // 2. Chuyển đổi chuỗi JSON (String) trở lại thành Map
       final Map<String, dynamic> resultData = json.decode(record.resultJson!);
 
-      // 3. Điều hướng sang ResultScreen và gửi Map đó đi
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -53,7 +51,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
 
     } catch (e) {
-      // Xử lý nếu JSON bị lỗi
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Lỗi giải mã dữ liệu: $e'),
@@ -62,7 +59,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
     }
   }
-  // ===============================================
 
   @override
   Widget build(BuildContext context) {
@@ -73,15 +69,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
       body: FutureBuilder<List<DiagnosisRecord>>(
         future: _historyFuture,
         builder: (context, snapshot) {
-          // ... (Các trạng thái loading, error, empty giữ nguyên) ...
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+
           if (snapshot.hasError) {
-            return Center(child: Text('Lỗi tải dữ liệu: ${snapshot.error}', /* ... */));
+            return Center(
+              child: Text(
+                'Lỗi tải dữ liệu: ${snapshot.error}',
+                style: const TextStyle(color: Colors.red),
+                textAlign: TextAlign.center,
+              ),
+            );
           }
+
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('Bạn chưa có lịch sử chẩn đoán nào.'));
+            return const Center(
+              child: Text('Bạn chưa có lịch sử chẩn đoán nào.'),
+            );
           }
 
           final historyList = snapshot.data!;
@@ -93,14 +98,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 child: ListTile(
-                  // Thay vì cố tải một ảnh không tồn tại,
-                  // chúng ta sẽ hiển thị một Icon placeholder.
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.blue[50],
-                    child: Icon(
-                      Icons.image_search,
-                      color: Colors.blue[600],
-                    ),
+                  leading: Image.network(
+                    record.imageUrl,
+                    width: 50,
+                    height: 50,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, progress) =>
+                    progress == null ? child : const CircularProgressIndicator(),
+                    errorBuilder: (context, error, stackTrace) =>
+                    const Icon(Icons.broken_image, color: Colors.grey),
                   ),
                   title: Text(
                     record.diseaseName ?? 'Không rõ bệnh',
@@ -111,8 +117,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     style: TextStyle(color: Colors.grey[600]),
                   ),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-
-                  // SỬA Ở ĐÂY: Gọi hàm _viewHistoryDetail
                   onTap: () {
                     _viewHistoryDetail(record);
                   },

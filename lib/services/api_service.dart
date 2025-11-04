@@ -14,8 +14,8 @@ class ApiService {
   ApiService() {
     // Dùng URL từ file config
     _dio.options.baseUrl = AppConfig.baseUrl;
-    _dio.options.connectTimeout = const Duration(milliseconds: 5000);
-    _dio.options.receiveTimeout = const Duration(milliseconds: 3000);
+    _dio.options.connectTimeout = const Duration(milliseconds: 10000);
+    _dio.options.receiveTimeout = const Duration(milliseconds: 30000);
 
     // --- INTERCEPTOR XỬ LÝ LỖI 401 (PRODUCTION-READY) ---
     _dio.interceptors.add(InterceptorsWrapper(
@@ -115,7 +115,7 @@ class ApiService {
       if (e.response != null && e.response?.statusCode != 401) {
         throw e.response!.data['message'];
       }
-      throw 'Vui lòng đăng nhập lại sau mỗi 24 giờ ';
+      throw 'Không thể kết nối đến máy chủ.';
     } catch (e) {
       throw 'Đã xảy ra lỗi không xác định: $e';
     }

@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 
 class ResultScreen extends StatelessWidget {
-  // Nhận kết quả chẩn đoán (dạng Map)
   final Map<String, dynamic> diagnosisResult;
 
   const ResultScreen({super.key, required this.diagnosisResult});
 
   @override
   Widget build(BuildContext context) {
-    // Lấy dữ liệu từ Map (an toàn)
+    // Lấy dữ liệu từ Map
     final String diseaseName = diagnosisResult['disease_name'] ?? 'Không rõ';
     final double confidence = (diagnosisResult['confidence_score'] ?? 0.0) * 100;
     final String description = diagnosisResult['description'] ?? 'Không có mô tả.';
     final String recommendation = diagnosisResult['recommendation'] ?? 'Không có khuyến nghị.';
+
+    // === SỬA LỖI Ở ĐÂY: Lấy URL ảnh ===
+    // Dữ liệu này bây giờ đã có sẵn trong diagnosisResult
+    final String? imageUrl = diagnosisResult['image_url'];
+    // =================================
 
     return Scaffold(
       appBar: AppBar(
@@ -23,6 +27,25 @@ class ResultScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // === SỬA LỖI Ở ĐÂY: Hiển thị ảnh ===
+            // (Bỏ comment và thêm kiểm tra null)
+            if (imageUrl != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  imageUrl,
+                  height: 250, // Tăng chiều cao cho dễ nhìn
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, progress) =>
+                  progress == null ? child : const Center(child: CircularProgressIndicator()),
+                  errorBuilder: (context, error, stackTrace) =>
+                  const Icon(Icons.broken_image, size: 100, color: Colors.grey),
+                ),
+              ),
+            // =================================
+            const SizedBox(height: 16),
+
             Text(
               'Kết quả:',
               style: Theme.of(context).textTheme.headlineSmall,
