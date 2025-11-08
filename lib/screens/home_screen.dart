@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:app/services/api_service.dart';
 import 'package:app/screens/result_screen.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:app/config/app_theme.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,9 +18,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool _isLoading = false;
 
-  // Hàm Đăng xuất (ĐÃ CHUYỂN SANG PROFILE_SCREEN)
+  // === THÊM HÀM MỚI: CẮT ẢNH ===
+  Future<XFile?> _cropImage(XFile imageFile) async {
+    final croppedFile = await ImageCropper().cropImage(
+      sourcePath: imageFile.path,
+      // Cấu hình giao diện cắt ảnh
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Cắt & Xoay ảnh',
+          toolbarColor: AppTheme.primaryColor,
+          toolbarWidgetColor: Colors.white,
+          initAspectRatio: CropAspectRatioPreset.square,
+          lockAspectRatio: false,
+        ),
+        IOSUiSettings(
+          title: 'Cắt & Xoay ảnh',
+        ),
+      ],
+    );
+    // Trả về file đã cắt (hoặc null nếu user hủy)
+    return croppedFile == null ? null : XFile(croppedFile.path);
+  }
 
-  // Hàm chọn ảnh và chẩn đoán
+  // Hàm chọn ảnh và chẩn đoán (ĐÃ CẬP NHẬT)
   Future<void> _startDiagnosis() async {
     // 1. Hiển thị dialog chọn Nguồn ảnh
     final source = await showDialog<ImageSource>(
@@ -40,20 +62,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (source == null) return;
 
-    // 2. Lấy ảnh
-    final XFile? image = await _picker.pickImage(source: source);
-    if (image == null) return;
+    // 2. Lấy ảnh (gốc)
+    final XFile? originalImage = await _picker.pickImage(source: source);
+    if (originalImage == null) return;
 
-    // 3. Bắt đầu Loading
+    // === SỬA Ở ĐÂY: Thêm bước Cắt ảnh ===
+    // 3. Cắt ảnh
+    final XFile? croppedImage = await _cropImage(originalImage);
+    if (croppedImage == null) return; // User hủy ở bước cắt
+    // ==================================
+
+    // 4. Bắt đầu Loading
     setState(() { _isLoading = true; });
 
     try {
-      // 4. Gọi API
-      final result = await _apiService.diagnose(image);
+      // 5. Gọi API (gửi ảnh ĐÃ CẮT)
+      final result = await _apiService.diagnose(croppedImage);
 
-      // 5. Chuyển sang Màn hình Kết quả
+      // 6. Chuyển sang Màn hình Kết quả
       if (mounted) {
-        // Dùng Navigator.push (không phải replacement)
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -62,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     } catch (e) {
-      // 6. Hiển thị lỗi
+      // 7. Hiển thị lỗi
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -72,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     } finally {
-      // 7. Dừng Loading
+      // 8. Dừng Loading
       if (mounted) setState(() { _isLoading = false; });
     }
   }
