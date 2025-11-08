@@ -52,6 +52,9 @@ dependencies:
   # Thư viện giải mã Token (để đọc role)
   jwt_decoder: ^2.0.1
 
+  # Thư viện lưu trữ đơn giản (để nhớ đã xem onboarding chưa)
+  shared_preferences: ^2.2.3
+
   # Thư viện vẽ biểu đồ
   fl_chart: ^0.68.0
 

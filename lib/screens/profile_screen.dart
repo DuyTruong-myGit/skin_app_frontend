@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'login_screen.dart'; // Import màn hình Login
 import 'package:app/services/api_service.dart';
+import 'package:app/providers/theme_provider.dart';
+import 'package:provider/provider.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -112,99 +114,131 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Hồ sơ'),
+        title: const Text('Hồ sơ & Cài đặt'),
       ),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _profileFuture,
         builder: (context, snapshot) {
-          // 1. Đang tải
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          // 2. Lỗi
           if (snapshot.hasError) {
             return Center(child: Text('Lỗi tải hồ sơ: ${snapshot.error}'));
           }
-          // 3. Có dữ liệu
           return _buildProfileView(snapshot.data ?? {});
         },
       ),
     );
   }
 
-  // Tách view ra cho sạch
+  // SỬA: Tách _buildProfileView ra và thêm ListView
   Widget _buildProfileView(Map<String, dynamic> profileData) {
-    return Padding(
+    // Lắng nghe provider
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
+    return ListView( // Đổi Column thành ListView
       padding: const EdgeInsets.all(16.0),
-      child: Column(
-        children: [
-          const CircleAvatar(
+      children: [
+        // Phần Thông tin
+        const Center(
+          child: CircleAvatar(
             radius: 50,
             child: Icon(Icons.person, size: 50),
           ),
-          const SizedBox(height: 16),
-
-          // Hiển thị Email (không cho sửa)
-          TextField(
-            controller: TextEditingController(text: _email),
-            readOnly: true,
-            decoration: InputDecoration(
-                labelText: 'Email',
-                prefixIcon: Icon(Icons.email_outlined),
-                filled: true,
-                fillColor: Colors.grey[200]
-            ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: TextEditingController(text: _email),
+          readOnly: true,
+          decoration: InputDecoration(
+            labelText: 'Email',
+            prefixIcon: Icon(Icons.email_outlined),
+            filled: true,
+            fillColor: Theme.of(context).cardColor.withOpacity(0.5),
           ),
-          const SizedBox(height: 16),
-
-          // Cho sửa Họ và Tên
-          TextField(
-            controller: _fullNameController,
-            decoration: const InputDecoration(
-              labelText: 'Họ và Tên',
-              prefixIcon: Icon(Icons.person_outline),
-            ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _fullNameController,
+          decoration: const InputDecoration(
+            labelText: 'Họ và Tên',
+            prefixIcon: Icon(Icons.person_outline),
           ),
-          const SizedBox(height: 20),
-
-          // Nút Cập nhật Tên
-          ElevatedButton(
-            onPressed: _isLoading ? null : _handleUpdateProfile,
-            style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-                backgroundColor: Colors.green[600]
-            ),
-            child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Cập nhật hồ sơ'),
-          ),
-          const SizedBox(height: 16),
-
-          // Nút Đổi mật khẩu
-          ElevatedButton(
-            onPressed: _isLoading ? null : _handleRequestReset,
-            style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-                backgroundColor: Colors.orange[700]
-            ),
-            child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Đổi mật khẩu'),
-          ),
-
-          const Spacer(), // Đẩy nút Đăng xuất xuống dưới
-
-          // Nút Đăng xuất
-          ElevatedButton.icon(
-            icon: const Icon(Icons.logout),
-            label: const Text('Đăng xuất'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red[400],
+        ),
+        const SizedBox(height: 20),
+        ElevatedButton(
+          onPressed: _isLoading ? null : _handleUpdateProfile,
+          style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 50),
-            ),
-            onPressed: () {
-              _handleLogout();
-            },
+              backgroundColor: Colors.green[600]
           ),
-          const SizedBox(height: 20),
-        ],
-      ),
+          child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Cập nhật hồ sơ'),
+        ),
+
+        const Divider(height: 40),
+
+        // === THÊM PHẦN CHỌN THEME ===
+        Text(
+          'Giao diện',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 10),
+        // Dùng SegmentedButton cho trực quan
+        SegmentedButton<ThemeModeOption>(
+          segments: const [
+            ButtonSegment(
+              value: ThemeModeOption.light,
+              icon: Icon(Icons.light_mode_outlined),
+              label: Text('Sáng'),
+            ),
+            ButtonSegment(
+              value: ThemeModeOption.system,
+              icon: Icon(Icons.brightness_auto_outlined),
+              label: Text('Hệ thống'),
+            ),
+            ButtonSegment(
+              value: ThemeModeOption.dark,
+              icon: Icon(Icons.dark_mode_outlined),
+              label: Text('Tối'),
+            ),
+          ],
+          selected: {themeProvider.currentThemeOption},
+          onSelectionChanged: (Set<ThemeModeOption> newSelection) {
+            themeProvider.setThemeMode(newSelection.first);
+          },
+          style: SegmentedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12)
+          ),
+        ),
+        // ==========================
+
+        const Divider(height: 40),
+
+        // Phần Bảo mật
+        ElevatedButton(
+          onPressed: _isLoading ? null : _handleRequestReset,
+          style: ElevatedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 50),
+              backgroundColor: Colors.orange[700]
+          ),
+          child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Đổi mật khẩu'),
+        ),
+        const SizedBox(height: 16),
+
+        // Nút Đăng xuất
+        ElevatedButton.icon(
+          icon: const Icon(Icons.logout),
+          label: const Text('Đăng xuất'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red[400],
+            minimumSize: const Size(double.infinity, 50),
+          ),
+          onPressed: () {
+            _handleLogout();
+          },
+        ),
+        const SizedBox(height: 20),
+      ],
     );
   }
 }
