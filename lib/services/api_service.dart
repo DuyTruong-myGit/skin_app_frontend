@@ -6,6 +6,8 @@ import 'package:app/screens/login_screen.dart'; // Đổi 'app' nếu tên dự 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:app/models/diagnosis_record.dart';
+import 'package:app/models/chat_message.dart';
+import 'dart:convert';
 
 class ApiService {
   final Dio _dio = Dio();
@@ -343,4 +345,206 @@ class ApiService {
     }
   }
 
+  // === HÀM MỚI 1: UPLOAD AVATAR ===
+  /// (User) Tải lên ảnh đại diện
+  Future<Map<String, dynamic>> uploadAvatar(XFile imageFile) async {
+    try {
+      String fileName = imageFile.path.split('/').last;
+      FormData formData = FormData.fromMap({
+        "image": await MultipartFile.fromFile(
+          imageFile.path,
+          filename: fileName,
+        ),
+      });
+
+      final response = await _dio.put(
+        '/profile/avatar',
+        data: formData,
+        options: await _getAuthHeaders(),
+      );
+
+      return response.data as Map<String, dynamic>;
+
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.statusCode != 401) {
+        throw e.response!.data['message'];
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định: $e';
+    }
+  }
+
+
+  /// (User) Gửi Phản hồi
+  Future<String> submitFeedback(String feedbackType, String content) async {
+    try {
+      final response = await _dio.post(
+        '/feedback',
+        data: {
+          'feedback_type': feedbackType,
+          'content': content
+        },
+        options: await _getAuthHeaders(), // Yêu cầu đăng nhập
+      );
+      return response.data['message']; // "Cảm ơn bạn!..."
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.statusCode != 401) {
+        throw e.response!.data['message'];
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
+  /// Xóa tất cả token và điều hướng về trang Đăng nhập
+  Future<void> logout() async {
+    // 1. Xóa tất cả dữ liệu an toàn
+    await _storage.delete(key: 'token');
+    await _storage.delete(key: 'role');
+    await _storage.delete(key: 'userId');
+
+    // 2. Lấy context toàn cục (từ NavigationService)
+    final context = NavigationService.navigatorKey.currentContext;
+
+    // 3. Điều hướng về Login
+    if (context != null && context.mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (route) => false, // Xóa tất cả màn hình cũ
+      );
+    }
+  }
+
+// === SỬA HÀM CHATBOT ĐỂ NHẬN STREAM ===
+
+  /// (User) Gửi tin nhắn Chatbot (Streaming)
+  Stream<String> sendMessageToGemini(String message) async* {
+    try {
+      final token = await _storage.read(key: 'token');
+
+      // Sử dụng ResponseType.stream
+      final response = await _dio.post(
+        '/chat', // Endpoint vẫn là POST
+        data: {'message': message},
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+          responseType: ResponseType.stream, // <-- Yêu cầu Dio trả về Stream
+        ),
+      );
+
+      // Lắng nghe stream từ ResponseBody
+      // Dùng utf8.decode để xử lý các mẩu data (Uint8List)
+      await for (final chunk in response.data!.stream) {
+        yield utf8.decode(chunk); // Gửi từng mẩu text về App
+      }
+
+    } catch (e) {
+      // Nếu có lỗi, ném (throw) lỗi để StreamBuilder bắt được
+      print("Lỗi Stream: $e");
+      throw Exception('Lỗi kết nối hoặc server AI gặp sự cố.');
+    }
+  }
+
+  /// (User) Lấy Lịch sử Chat
+  Future<List<ChatMessage>> getChatHistory() async {
+    try {
+      final response = await _dio.get(
+        '/chat/history',
+        options: await _getAuthHeaders(),
+      );
+
+      // Chuyển đổi List<dynamic> (JSON) sang List<ChatMessage>
+      List<ChatMessage> chatList = (response.data as List)
+          .map((item) => ChatMessage(
+        text: item['content'],
+        isUser: item['role'] == 'user',
+      ))
+          .toList();
+
+      return chatList;
+
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.statusCode != 401) {
+        throw e.response!.data['message'];
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
+
+  /// (Public) Yêu cầu gửi mã reset (khi quên)
+  Future<String> publicRequestPasswordReset(String email) async {
+    try {
+      final response = await _dio.post(
+        '/auth/public-forgot-password',
+        data: {'email': email},
+        // KHÔNG CẦN HEADER AUTH
+      );
+      return response.data['message']; // "Đã gửi mã..."
+    } on DioException catch (e) {
+      if (e.response != null) throw e.response!.data['message'];
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
+  /// (Public) Gửi mã 6 số và mật khẩu mới (khi quên)
+  Future<String> publicResetPasswordWithCode(String email, String code, String newPassword) async {
+    try {
+      final response = await _dio.post(
+        '/auth/public-reset-password',
+        data: {
+          'email': email,
+          'code': code,
+          'newPassword': newPassword,
+        },
+        // KHÔNG CẦN HEADER AUTH
+      );
+      return response.data['message']; // "Đổi mật khẩu thành công!"
+    } on DioException catch (e) {
+      if (e.response != null) throw e.response!.data['message'];
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
+
+  // === API MỚI: NEWS ===
+
+  /// Lấy danh sách các nguồn tin (VnExpress, v.v.)
+  Future<List<Map<String, dynamic>>> getNewsSources() async {
+    try {
+      final response = await _dio.get('/news/sources'); // Không cần auth
+      return List<Map<String, dynamic>>.from(response.data['data']);
+    } on DioException catch (e) {
+      if (e.response != null) throw e.response!.data['message'];
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
+  /// Cạo (scrape) bài viết từ một URL cụ thể
+  Future<List<Map<String, dynamic>>> scrapeNews(String newsUrl) async {
+    try {
+      final response = await _dio.get(
+        '/news/scrape',
+        queryParameters: {'url': newsUrl}, // Gửi URL qua query param
+      );
+      return List<Map<String, dynamic>>.from(response.data['articles']);
+    } on DioException catch (e) {
+      if (e.response != null) throw e.response!.data['message'];
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
+  
 }

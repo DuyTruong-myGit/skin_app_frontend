@@ -4,12 +4,16 @@ import 'package:app/screens/splash_screen.dart';
 import 'package:app/services/navigation_service.dart';
 import 'package:app/providers/theme_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:app/providers/profile_provider.dart';
 void main() {
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => ThemeProvider(),
-      child: const MyApp(),
-    ),
+      MultiProvider( // Dùng MultiProvider để bọc cả 2
+        providers: [
+          ChangeNotifierProvider(create: (context) => ThemeProvider()),
+          ChangeNotifierProvider(create: (context) => ProfileProvider()), // Thêm dòng này
+        ],
+        child: const MyApp(),
+      ),
   );
 }
 
@@ -24,7 +28,7 @@ class MyApp extends StatelessWidget {
         // 'themeProvider' bây giờ đã được định nghĩa
         return MaterialApp(
           navigatorKey: NavigationService.navigatorKey,
-          title: 'Chẩn đoán Da',
+          title: 'CheckMyHealth',
 
           theme: AppTheme.lightTheme,      // Theme Sáng
           darkTheme: AppTheme.darkTheme,   // Theme Tối

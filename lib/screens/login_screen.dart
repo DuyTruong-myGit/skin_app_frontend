@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'register_screen.dart';
 import 'main_screen.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:app/screens/forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -146,6 +147,23 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? const CircularProgressIndicator(color: Colors.white)
                       : const Text('Đăng nhập', style: TextStyle(fontSize: 16)),
                 ),
+
+                // === THÊM NÚT QUÊN MẬT KHẨU VÀO ĐÂY ===
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ForgotPasswordScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text('Quên mật khẩu?'),
+                  ),
+                ),
+
                 const SizedBox(height: 16),
 
                 // === PHẦN UI ĐÃ BỊ MẤT ===
