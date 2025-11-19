@@ -515,6 +515,26 @@ class ApiService {
   }
 
 
+
+  /// (Admin) Lấy danh sách feedback
+  Future<List<Map<String, dynamic>>> getAdminFeedbackList() async {
+    try {
+      final response = await _dio.get(
+        '/admin/feedback',
+        options: await _getAuthHeaders(),
+      );
+      // Trả về List<Map>
+      return List<Map<String, dynamic>>.from(response.data);
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.statusCode != 401) {
+        throw e.response!.data['message'];
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
   // === API MỚI: NEWS ===
 
   /// Lấy danh sách các nguồn tin (VnExpress, v.v.)
@@ -546,5 +566,52 @@ class ApiService {
     }
   }
 
+  // --- ADMIN FEEDBACK ---
+
+  Future<String> deleteFeedback(int feedbackId) async {
+    try {
+      final response = await _dio.delete(
+        '/admin/feedback/$feedbackId',
+        options: await _getAuthHeaders(),
+      );
+      return response.data['message'];
+    } on DioException catch (e) {
+      if (e.response != null) throw e.response!.data['message'];
+      throw 'Lỗi kết nối';
+    }
+  }
+
+  Future<String> updateFeedbackStatus(int feedbackId, String status) async {
+    try {
+      final response = await _dio.put(
+        '/admin/feedback/$feedbackId/status',
+        data: {'status': status},
+        options: await _getAuthHeaders(),
+      );
+      return response.data['message'];
+    } on DioException catch (e) {
+      if (e.response != null) throw e.response!.data['message'];
+      throw 'Lỗi kết nối';
+    }
+  }
+
+  // --- NOTIFICATIONS ---
+
+  Future<List<Map<String, dynamic>>> getNotifications() async {
+    try {
+      final response = await _dio.get(
+        '/notifications',
+        options: await _getAuthHeaders(),
+      );
+      return List<Map<String, dynamic>>.from(response.data);
+    } on DioException catch (e) {
+      throw 'Lỗi tải thông báo';
+    }
+  }
+
+  // Hàm đánh dấu đã đọc (tùy chọn dùng sau)
+  Future<void> markNotificationRead(int id) async {
+    await _dio.put('/notifications/$id/read', options: await _getAuthHeaders());
+  }
   
 }

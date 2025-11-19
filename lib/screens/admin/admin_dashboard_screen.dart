@@ -3,6 +3,7 @@ import 'package:app/services/api_service.dart';
 import 'package:fl_chart/fl_chart.dart'; // <-- Thư viện biểu đồ
 import 'package:app/config/app_theme.dart';
 import 'package:app/screens/admin/admin_user_list_screen.dart';
+import 'package:app/screens/admin/admin_feedback_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -21,6 +22,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _statsFuture = _apiService.getAdminStatistics();
   }
 
+  // === HÀM BUILD ĐÃ SỬA ===
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -60,6 +62,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   children: [
                     _buildStatCard('Tổng Người dùng', totalUsers, Icons.person_outline, Colors.blue),
                     const SizedBox(width: 16),
+                    // === SỬA LỖI TYPO ICON ===
                     _buildStatCard('Tổng Lượt khám', totalDiagnoses, Icons.medical_services_outlined, Colors.green),
                   ],
                 ),
@@ -81,15 +84,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 16),
+
+                // 1. Nút Quản lý Người dùng
                 _buildMenuTile(
                   context,
                   title: 'Quản lý Người dùng',
                   icon: Icons.manage_accounts_outlined,
                   onTap: () {
-                    // TODO: Điều hướng sang trang AdminUserListScreen
-                    print('Chuyển sang trang Quản lý User');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AdminUserListScreen()),
+                    );
                   },
                 ),
+
+                // 2. Nút Xem Phản hồi (Thêm vào)
+                _buildMenuTile(
+                  context,
+                  title: 'Xem Phản hồi',
+                  icon: Icons.feedback_outlined,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AdminFeedbackScreen()),
+                    );
+                  },
+                ),
+
               ],
             ),
           );
@@ -97,6 +118,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
     );
   }
+
+  // === CÁC HÀM TRỢ GIÚP (NẰM BÊN DƯỚI HÀM BUILD) ===
 
   // Widget con cho Thẻ thống kê
   Widget _buildStatCard(String title, int value, IconData icon, Color color) {
@@ -172,13 +195,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         leading: Icon(icon, color: AppTheme.primaryColor),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () {
-          // Bỏ hàm print cũ và điều hướng thật
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const AdminUserListScreen()),
-          );
-        },
+        // Gọi tham số 'onTap' đã được truyền vào
+        onTap: onTap,
       ),
     );
   }
