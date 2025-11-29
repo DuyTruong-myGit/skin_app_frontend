@@ -8,6 +8,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:app/models/diagnosis_record.dart';
 import 'package:app/models/chat_message.dart';
 import 'dart:convert';
+import 'package:app/utils/image_helper.dart';
+import 'dart:io';
+import 'package:path/path.dart' as path;
+import 'package:intl/intl.dart';
+import 'package:app/services/google_auth_service.dart';
 
 class ApiService {
   final Dio _dio = Dio();
@@ -16,8 +21,8 @@ class ApiService {
   ApiService() {
     // Dùng URL từ file config
     _dio.options.baseUrl = AppConfig.baseUrl;
-    _dio.options.connectTimeout = const Duration(milliseconds: 10000);
-    _dio.options.receiveTimeout = const Duration(milliseconds: 30000);
+    _dio.options.connectTimeout = const Duration(milliseconds: 60000);
+    _dio.options.receiveTimeout = const Duration(milliseconds: 60000);
 
     // --- INTERCEPTOR XỬ LÝ LỖI 401 (PRODUCTION-READY) ---
     _dio.interceptors.add(InterceptorsWrapper(
@@ -94,32 +99,77 @@ class ApiService {
     }
   }
 
-  // API CHẨN ĐOÁN (Giữ nguyên)
   Future<Map<String, dynamic>> diagnose(XFile imageFile) async {
     try {
-      String fileName = imageFile.path.split('/').last;
+      // === 1. RESIZE & COMPRESS ẢNH ===
+      print('🔄 Đang xử lý ảnh...');
+      File file = File(imageFile.path);
+
+      // Validate kích thước
+      bool isValidSize = await ImageHelper.validateFileSize(file);
+      if (!isValidSize) {
+        throw 'Ảnh quá lớn (>10MB). Vui lòng chọn ảnh khác.';
+      }
+
+      // Resize và compress
+      File optimizedFile = await ImageHelper.resizeAndCompressImage(file);
+      print('✅ Ảnh đã được tối ưu hóa');
+      // ================================
+
+      // 2. Chuẩn bị FormData
+      String fileName = path.basename(optimizedFile.path);
       FormData formData = FormData.fromMap({
         "image": await MultipartFile.fromFile(
-          imageFile.path,
+          optimizedFile.path,
           filename: fileName,
         ),
       });
 
+      // 3. Gọi API
+      print('📤 Đang gửi ảnh lên server...');
       final response = await _dio.post(
         '/diagnose',
         data: formData,
         options: await _getAuthHeaders(),
       );
 
-      return response.data as Map<String, dynamic>;
+      print('✅ Nhận được kết quả từ server');
+
+      // === 4. XỬ LÝ RESPONSE MỚI ===
+      final result = response.data as Map<String, dynamic>;
+
+      // Kiểm tra nếu ảnh không hợp lệ
+      if (result['success'] == false || result['is_valid_skin_image'] == false) {
+        throw result['description'] ?? 'Ảnh không hợp lệ';
+      }
+
+      return result;
+      // ============================
 
     } on DioException catch (e) {
-      if (e.response != null && e.response?.statusCode != 401) {
-        throw e.response!.data['message'];
+      print('❌ DioException: ${e.response?.statusCode}');
+
+      if (e.response != null) {
+        // Backend trả về lỗi validation
+        final errorData = e.response!.data;
+
+        if (errorData is Map && errorData['message'] != null) {
+          throw errorData['message'];
+        }
+
+        throw 'Lỗi từ server: ${e.response!.statusCode}';
       }
-      throw 'Không thể kết nối đến máy chủ.';
+
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        throw 'Timeout: Server AI đang khởi động. Vui lòng thử lại sau 30 giây.';
+      }
+
+      throw 'Không thể kết nối đến máy chủ. Kiểm tra kết nối mạng.';
+
     } catch (e) {
-      throw 'Đã xảy ra lỗi không xác định: $e';
+      print('❌ Error: $e');
+      throw 'Đã xảy ra lỗi: $e';
     }
   }
 
@@ -247,22 +297,37 @@ class ApiService {
   }
 
   /// (Admin) Lấy danh sách user (CÓ TÌM KIẾM)
-  Future<List<Map<String, dynamic>>> getAdminUserList(String searchTerm) async { // <-- SỬA 1: Thêm tham số
+  Future<List<Map<String, dynamic>>> getAdminUserList(String searchTerm) async {
     try {
       final response = await _dio.get(
-        '/admin/users', // <-- SỬA 2: Path là tham số đầu tiên
-        queryParameters: {'search': searchTerm}, // <-- SỬA 3: queryParameters là tham số named
+        '/admin/users',
+        queryParameters: {'search': searchTerm},
         options: await _getAuthHeaders(),
       );
-      // Trả về List<Map>
-      return List<Map<String, dynamic>>.from(response.data);
+
+      // === SỬA LỖI TẠI ĐÂY ===
+      // Backend trả về { "items": [...], "total": ... }
+      // Nên ta phải lấy response.data['items']
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['items'] != null) {
+        return List<Map<String, dynamic>>.from(data['items']);
+      } else {
+        // Fallback: Nếu backend thay đổi hoặc trả về mảng trực tiếp (đề phòng)
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data);
+        }
+        return []; // Trả về rỗng nếu không đúng định dạng
+      }
+      // =======================
+
     } on DioException catch (e) {
       if (e.response != null && e.response?.statusCode != 401) {
         throw e.response!.data['message'];
       }
       throw 'Không thể kết nối đến máy chủ.';
     } catch (e) {
-      throw 'Đã xảy ra lỗi không xác định.';
+      print("Lỗi getAdminUserList: $e"); // In log để dễ debug
+      throw 'Đã xảy ra lỗi không xác định: $e'; // Hiển thị chi tiết lỗi nếu cần
     }
   }
 
@@ -286,6 +351,19 @@ class ApiService {
       throw 'Không thể kết nối đến máy chủ.';
     } catch (e) {
       throw 'Đã xảy ra lỗi không xác định: $e';
+    }
+  }
+
+  // === HÀM MỚI: XÓA LỊCH SỬ CHẨN ĐOÁN ===
+  Future<void> deleteDiagnosisHistory(int historyId) async {
+    try {
+      await _dio.delete(
+        '/diagnose/$historyId',
+        options: await _getAuthHeaders(),
+      );
+    } on DioException catch (e) {
+      if (e.response != null) throw e.response!.data['message'];
+      throw 'Lỗi xóa lịch sử';
     }
   }
 
@@ -612,6 +690,254 @@ class ApiService {
   // Hàm đánh dấu đã đọc (tùy chọn dùng sau)
   Future<void> markNotificationRead(int id) async {
     await _dio.put('/notifications/$id/read', options: await _getAuthHeaders());
+  }
+
+
+
+  // --- BỆNH LÝ (DISEASES) ---
+
+  // Lấy danh sách (có search)
+  Future<List<Map<String, dynamic>>> getDiseases({String search = ''}) async {
+    try {
+      final response = await _dio.get(
+        '/diseases',
+        queryParameters: {'search': search},
+        options: await _getAuthHeaders(),
+      );
+      return List<Map<String, dynamic>>.from(response.data);
+    } on DioException catch (e) {
+      throw 'Lỗi tải danh sách bệnh';
+    }
+  }
+
+  // Lấy chi tiết
+  Future<Map<String, dynamic>> getDiseaseDetail(int id) async {
+    try {
+      final response = await _dio.get('/diseases/$id', options: await _getAuthHeaders());
+      return response.data;
+    } on DioException catch (e) {
+      throw 'Lỗi tải chi tiết bệnh';
+    }
+  }
+
+  // (Admin) Tạo mới
+  Future<void> createDisease(Map<String, dynamic> data) async {
+    try {
+      await _dio.post('/diseases', data: data, options: await _getAuthHeaders());
+    } on DioException catch (e) {
+      if (e.response != null) throw e.response!.data['message']; // Báo lỗi duplicate code chẳng hạn
+      throw 'Lỗi tạo bệnh';
+    }
+  }
+
+  // (Admin) Cập nhật
+  Future<void> updateDisease(int id, Map<String, dynamic> data) async {
+    try {
+      await _dio.put('/diseases/$id', data: data, options: await _getAuthHeaders());
+    } on DioException catch (e) {
+      throw 'Lỗi cập nhật';
+    }
+  }
+
+  // (Admin) Xóa
+  Future<void> deleteDisease(int id) async {
+    try {
+      await _dio.delete('/diseases/$id', options: await _getAuthHeaders());
+    } on DioException catch (e) {
+      throw 'Lỗi xóa';
+    }
+  }
+
+
+
+  // --- LỊCH TRÌNH (SCHEDULES) ---
+  // --- LỊCH TRÌNH (SCHEDULES) ---
+
+  /// 1. Tạo lịch trình mới
+  Future<int> createSchedule(Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.post(
+          '/schedules',
+          data: data,
+          options: await _getAuthHeaders()
+      );
+
+      // Backend trả về: { message: '...', id: X }
+      // Lấy id từ response (có thể là 'id' hoặc 'insertId')
+      return response.data['id'] ?? response.data['insertId'] ?? 0;
+
+    } on DioException catch (e) {
+      if (e.response != null) {
+        throw e.response!.data['message'] ?? 'Lỗi tạo lịch trình';
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    }
+  }
+
+  /// 2. Cập nhật lịch trình
+  Future<void> updateSchedule(int id, Map<String, dynamic> data) async {
+    try {
+      await _dio.put(
+          '/schedules/$id',
+          data: data,
+          options: await _getAuthHeaders()
+      );
+    } on DioException catch (e) {
+      if (e.response != null) {
+        throw e.response!.data['message'] ?? 'Lỗi cập nhật lịch trình';
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    }
+  }
+
+  /// 3. Lấy danh sách công việc theo ngày
+  Future<List<Map<String, dynamic>>> getDailyTasks(DateTime date) async {
+    try {
+      // Format ngày: YYYY-MM-DD
+      String dateStr = DateFormat('yyyy-MM-dd').format(date);
+
+      // Chuyển đổi thứ: Dart (1=Mon..7=Sun) -> Backend (2=T2..8=CN)
+      int dayOfWeek = date.weekday == 7 ? 8 : date.weekday + 1;
+
+      final response = await _dio.get(
+        '/schedules/daily',
+        queryParameters: {
+          'date': dateStr,
+          'dayOfWeek': dayOfWeek.toString()
+        },
+        options: await _getAuthHeaders(),
+      );
+
+      // Backend trả về array trực tiếp
+      return List<Map<String, dynamic>>.from(response.data);
+
+    } on DioException catch (e) {
+      print("❌ Get Daily Tasks Error: ${e.message}");
+      // Trả về list rỗng thay vì throw để UI không crash
+      return [];
+    }
+  }
+
+  /// 4. Toggle trạng thái hoàn thành
+  Future<void> toggleTask(int scheduleId, DateTime date, bool isCompleted) async {
+    try {
+      String dateStr = DateFormat('yyyy-MM-dd').format(date);
+
+      await _dio.put(
+        '/schedules/$scheduleId/toggle',
+        data: {
+          'date': dateStr,
+          'status': isCompleted ? 'completed' : 'pending'
+        },
+        options: await _getAuthHeaders(),
+      );
+    } on DioException catch (e) {
+      if (e.response != null) {
+        throw e.response!.data['message'] ?? 'Lỗi cập nhật trạng thái';
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    }
+  }
+
+  /// 5. Xóa lịch trình
+  Future<void> deleteSchedule(int id) async {
+    try {
+      await _dio.delete(
+          '/schedules/$id',
+          options: await _getAuthHeaders()
+      );
+    } on DioException catch (e) {
+      if (e.response != null) {
+        throw e.response!.data['message'] ?? 'Lỗi xóa lịch';
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    }
+  }
+
+  /// 6. Lấy tất cả lịch trình (không filter theo ngày)
+  Future<List<Map<String, dynamic>>> getAllSchedules() async {
+    try {
+      final response = await _dio.get(
+        '/schedules/all',
+        options: await _getAuthHeaders(),
+      );
+      return List<Map<String, dynamic>>.from(response.data);
+    } on DioException catch (e) {
+      print("❌ Get All Schedules Error: ${e.message}");
+      return [];
+    }
+  }
+
+  /// 7. Lấy thống kê
+  Future<Map<String, dynamic>> getScheduleStats() async {
+    try {
+      final response = await _dio.get(
+        '/schedules/stats',
+        options: await _getAuthHeaders(),
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return {'total_logs': 0, 'completed_count': 0};
+    }
+  }
+
+
+  /// API Đăng nhập Google
+  Future<String> googleLoginMobile(Map<String, dynamic> googleData) async {
+    try {
+      final response = await _dio.post(
+        '/auth/google/mobile',
+        data: googleData,
+      );
+
+      // Kiểm tra response
+      if (response.data['success'] == false) {
+        throw response.data['message'] ?? 'Đăng nhập thất bại';
+      }
+
+      // Lưu provider để biết user đăng nhập bằng cách nào
+      await _storage.write(key: 'auth_provider', value: 'google');
+
+      return response.data['token'];
+
+    } on DioException catch (e) {
+      if (e.response != null) {
+        throw e.response!.data['message'] ?? 'Lỗi đăng nhập Google';
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định: $e';
+    }
+  }
+
+  /// Cập nhật logout để xử lý Google Sign-Out
+  Future<void> logoutWithGoogle() async {
+    // 1. Kiểm tra provider
+    final provider = await _storage.read(key: 'auth_provider');
+
+    // 2. Nếu đăng nhập bằng Google, logout khỏi Google
+    if (provider == 'google') {
+      try {
+        await GoogleAuthService().signOut();
+      } catch (e) {
+        print('Lỗi đăng xuất Google: $e');
+      }
+    }
+
+    // 3. Xóa dữ liệu local
+    await _storage.delete(key: 'token');
+    await _storage.delete(key: 'role');
+    await _storage.delete(key: 'userId');
+    await _storage.delete(key: 'auth_provider');
+
+    // 4. Điều hướng về Login
+    final context = NavigationService.navigatorKey.currentContext;
+    if (context != null && context.mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (route) => false,
+      );
+    }
   }
   
 }

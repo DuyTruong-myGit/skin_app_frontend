@@ -1,700 +1,415 @@
-// import 'package:flutter/material.dart';
-//
-// class ResultScreen extends StatelessWidget {
-//   final Map<String, dynamic> diagnosisResult;
-//
-//   const ResultScreen({super.key, required this.diagnosisResult});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     // Lấy dữ liệu từ Map
-//     final String diseaseName = diagnosisResult['disease_name'] ?? 'Không rõ';
-//     final double confidence = (diagnosisResult['confidence_score'] ?? 0.0) * 100;
-//     final String description = diagnosisResult['description'] ?? 'Không có mô tả.';
-//     final String recommendation = diagnosisResult['recommendation'] ?? 'Không có khuyến nghị.';
-//
-//     // === SỬA LỖI Ở ĐÂY: Lấy URL ảnh ===
-//     // Dữ liệu này bây giờ đã có sẵn trong diagnosisResult
-//     final String? imageUrl = diagnosisResult['image_url'];
-//     // =================================
-//
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: const Text('Kết quả Chẩn đoán'),
-//       ),
-//       body: SingleChildScrollView(
-//         padding: const EdgeInsets.all(16.0),
-//         child: Column(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             // === SỬA LỖI Ở ĐÂY: Hiển thị ảnh ===
-//             // (Bỏ comment và thêm kiểm tra null)
-//             if (imageUrl != null)
-//               ClipRRect(
-//                 borderRadius: BorderRadius.circular(12),
-//                 child: Image.network(
-//                   imageUrl,
-//                   height: 250, // Tăng chiều cao cho dễ nhìn
-//                   width: double.infinity,
-//                   fit: BoxFit.cover,
-//                   loadingBuilder: (context, child, progress) =>
-//                   progress == null ? child : const Center(child: CircularProgressIndicator()),
-//                   errorBuilder: (context, error, stackTrace) =>
-//                   const Icon(Icons.broken_image, size: 100, color: Colors.grey),
-//                 ),
-//               ),
-//             // =================================
-//             const SizedBox(height: 16),
-//
-//             Text(
-//               'Kết quả:',
-//               style: Theme.of(context).textTheme.headlineSmall,
-//             ),
-//             const SizedBox(height: 10),
-//
-//             // Tên bệnh
-//             Text(
-//               diseaseName,
-//               style: TextStyle(
-//                 fontSize: 28,
-//                 fontWeight: FontWeight.bold,
-//                 color: Colors.blue[800],
-//               ),
-//             ),
-//             const SizedBox(height: 10),
-//
-//             // Độ tin cậy
-//             Text(
-//               'Độ tin cậy: ${confidence.toStringAsFixed(1)}%',
-//               style: TextStyle(
-//                 fontSize: 18,
-//                 color: Colors.grey[700],
-//                 fontStyle: FontStyle.italic,
-//               ),
-//             ),
-//             const SizedBox(height: 20),
-//             const Divider(),
-//
-//             // Mô tả
-//             Text(
-//               'Mô tả:',
-//               style: Theme.of(context).textTheme.titleLarge,
-//             ),
-//             const SizedBox(height: 10),
-//             Text(description, style: const TextStyle(fontSize: 16)),
-//             const SizedBox(height: 20),
-//
-//             // Khuyến nghị
-//             Text(
-//               'Khuyến nghị:',
-//               style: Theme.of(context).textTheme.titleLarge,
-//             ),
-//             const SizedBox(height: 10),
-//             Text(recommendation, style: const TextStyle(fontSize: 16)),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
+import 'dart:io';
+import 'dart:typed_data';
 
-
-
+import 'package:app/services/api_service.dart';
+import 'package:app/screens/disease/disease_detail_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-class ResultScreen extends StatelessWidget {
+// Các thư viện hỗ trợ chụp và chia sẻ
+import 'package:screenshot/screenshot.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+
+class ResultScreen extends StatefulWidget {
   final Map<String, dynamic> diagnosisResult;
 
   const ResultScreen({super.key, required this.diagnosisResult});
 
   @override
+  State<ResultScreen> createState() => _ResultScreenState();
+}
+
+class _ResultScreenState extends State<ResultScreen> {
+  // 1. Controller để chụp màn hình
+  final ScreenshotController _screenshotController = ScreenshotController();
+
+  // 2. Biến trạng thái: Kiểm tra xem đang trong quá trình chia sẻ hay không
+  bool _isSharing = false;
+
+  // --- CÁC HÀM XỬ LÝ LOGIC ---
+
+  void _navigateToDetail() {
+    final int? infoId = widget.diagnosisResult['info_id'];
+    final String diseaseNameVi = widget.diagnosisResult['disease_name_vi'] ?? 'Chi tiết bệnh';
+
+    if (infoId != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DiseaseDetailScreen(
+            diseaseId: infoId,
+            diseaseName: diseaseNameVi,
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Chưa có thông tin chi tiết cho bệnh này trong hệ thống.'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openMapSearch(String query) async {
+    final Uri url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$query');
+    try {
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        throw 'Không thể mở bản đồ';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      }
+    }
+  }
+
+  void _viewFullImage(String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            InteractiveViewer(
+              panEnabled: true,
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Image.network(imageUrl),
+            ),
+            Positioned(
+              top: 40,
+              right: 20,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- HÀM CHỤP VÀ CHIA SẺ (QUAN TRỌNG) ---
+  Future<void> _captureAndShare() async {
+    try {
+      // B1: Đặt trạng thái đang share -> UI sẽ ẩn nút, hiện footer
+      setState(() {
+        _isSharing = true;
+      });
+
+      // Chờ 100ms để Flutter kịp vẽ lại giao diện mới (ẩn nút)
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // B2: Thực hiện chụp ảnh widget
+      final Uint8List? imageBytes = await _screenshotController.capture();
+
+      // B3: Trả lại trạng thái bình thường ngay lập tức
+      setState(() {
+        _isSharing = false;
+      });
+
+      // B4: Lưu và Chia sẻ
+      if (imageBytes != null) {
+        final directory = await getTemporaryDirectory();
+        // Tạo tên file ngẫu nhiên hoặc cố định
+        final imagePath = await File('${directory.path}/checkmyhealth_result.png').create();
+        await imagePath.writeAsBytes(imageBytes);
+
+        // Mở dialog chia sẻ native
+        await Share.shareXFiles(
+          [XFile(imagePath.path)],
+          text: 'Kết quả chẩn đoán da liễu từ ứng dụng CheckMyHealth.',
+        );
+      }
+    } catch (e) {
+      // Nếu có lỗi, đảm bảo nút hiện lại
+      setState(() {
+        _isSharing = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi chia sẻ: $e')));
+      }
+    }
+  }
+
+  void _showMapOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Tìm cơ sở y tế gần bạn', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.local_pharmacy, color: Colors.green, size: 30),
+              title: const Text('Tìm Nhà thuốc gần nhất'),
+              onTap: () { Navigator.pop(context); _openMapSearch('Nhà thuốc'); },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.local_hospital, color: Colors.red, size: 30),
+              title: const Text('Tìm Phòng khám Da liễu'),
+              onTap: () { Navigator.pop(context); _openMapSearch('Bệnh viện da liễu'); },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- GIAO DIỆN ---
+  @override
   Widget build(BuildContext context) {
-    final String diseaseName = diagnosisResult['disease_name'] ?? 'Không rõ';
-    final double confidence = (diagnosisResult['confidence_score'] ?? 0.0) * 100;
-    final String description = diagnosisResult['description'] ?? 'Không có mô tả.';
-    final String recommendation = diagnosisResult['recommendation'] ?? 'Không có khuyến nghị.';
-    final String? imageUrl = diagnosisResult['image_url'];
+    // Lấy dữ liệu an toàn
+    final String diseaseNameEn = widget.diagnosisResult['disease_name'] ?? 'Unknown';
+    final String diseaseNameVi = widget.diagnosisResult['disease_name_vi'] ?? 'Đang cập nhật';
+
+    final dynamic rawScore = widget.diagnosisResult['confidence_score'];
+    final double scoreVal = (rawScore is num) ? rawScore.toDouble() : 0.0;
+    final double confidence = scoreVal * 100;
+
+    final String description = widget.diagnosisResult['description'] ?? 'Không có mô tả.';
+    final String? imageUrl = widget.diagnosisResult['image_url'];
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FBFF),
       appBar: AppBar(
-        elevation: 0,
+        title: const Text('Kết quả Chẩn đoán', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         flexibleSpace: Container(
           decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF0066CC), Color(0xFF00B4D8)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            gradient: LinearGradient(colors: [Color(0xFF0066CC), Color(0xFF00B4D8)]),
           ),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 22),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.medical_information_rounded, color: Colors.white, size: 24),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'Kết quả Chẩn đoán',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
-        ),
+        iconTheme: const IconThemeData(color: Colors.white),
+        // Nút share nhanh trên AppBar (vẫn giữ để tiện truy cập)
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share_rounded),
+            onPressed: _captureAndShare,
+            tooltip: 'Chia sẻ kết quả',
+          )
+        ],
       ),
       body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Image Section với Gradient Overlay
-            if (imageUrl != null)
-              GestureDetector(
-                onTap: () => _showFullImage(context, imageUrl),
-                child: Container(
-                  margin: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0066CC).withOpacity(0.2),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    children: [
-                      ClipRRect(
+        // Bao bọc toàn bộ nội dung cần chụp bằng Screenshot widget
+        child: Screenshot(
+          controller: _screenshotController,
+          child: Container(
+            color: const Color(0xFFF8FBFF), // Màu nền bắt buộc để ảnh không bị trong suốt
+            child: Column(
+              children: [
+                // 1. Ảnh bệnh
+                if (imageUrl != null)
+                  GestureDetector(
+                    onTap: () => _viewFullImage(imageUrl),
+                    child: Container(
+                      margin: const EdgeInsets.all(16),
+                      height: 250,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(20),
-                        child: Image.network(
-                          imageUrl,
-                          height: 280,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          loadingBuilder: (context, child, progress) => progress == null
-                              ? child
-                              : Container(
-                            height: 280,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0066CC).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0066CC)),
-                                strokeWidth: 3,
-                              ),
-                            ),
-                          ),
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            height: 280,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0066CC).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.broken_image_rounded,
-                                size: 80,
-                                color: Color(0xFF666666),
-                              ),
-                            ),
-                          ),
+                        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, 5))],
+                        image: DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover),
+                      ),
+                    ),
+                  ),
+
+                // 2. Thẻ kết quả chính
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFF0066CC), Color(0xFF00B4D8)]),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [BoxShadow(color: const Color(0xFF0066CC).withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('AI dự đoán bệnh:', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                      const SizedBox(height: 8),
+                      // TÊN TIẾNG ANH
+                      Text(
+                        diseaseNameEn,
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      const SizedBox(height: 4),
+                      // TÊN TIẾNG VIỆT
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4)
+                        ),
+                        child: Text(
+                          diseaseNameVi,
+                          style: const TextStyle(fontSize: 16, color: Colors.white, fontStyle: FontStyle.italic),
                         ),
                       ),
-                      // Gradient Overlay
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: Container(
-                          height: 100,
-                          decoration: BoxDecoration(
-                            borderRadius: const BorderRadius.only(
-                              bottomLeft: Radius.circular(20),
-                              bottomRight: Radius.circular(20),
-                            ),
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.6),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Zoom Icon Indicator
-                      Positioned(
-                        top: 12,
-                        right: 12,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.zoom_in_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Icon(Icons.verified_user, color: Colors.white, size: 20),
+                          const SizedBox(width: 8),
+                          Text('Độ tin cậy: ${confidence.toStringAsFixed(1)}%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // 3. Banner cảnh báo
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF3E0),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Lưu ý: Kết quả AI chỉ mang tính tham khảo. Vui lòng đi khám bác sĩ để có kết luận chính xác.',
+                          style: TextStyle(color: Color(0xFFE65100), fontSize: 13, height: 1.4),
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
 
-            // Main Result Card
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF0066CC).withOpacity(0.95),
-                    const Color(0xFF00B4D8).withOpacity(0.95),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                const SizedBox(height: 24),
+
+                // 4. Mô tả bệnh (Đưa lên trên các nút để khi chụp ảnh thông tin liền mạch hơn)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.all(16),
+                  width: double.infinity,
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("Mô tả sơ lược", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Text(description, style: const TextStyle(fontSize: 15, color: Colors.black87, height: 1.5)),
+                    ],
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF0066CC).withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+
+                const SizedBox(height: 24),
+
+                // -------------------------------------------------------------
+                // LOGIC ẨN/HIỆN NÚT BẤM
+                // -------------------------------------------------------------
+
+                // Nếu KHÔNG phải đang share (_isSharing == false) thì hiện nút bấm
+                if (!_isSharing) ...[
+                  // Nút Chia sẻ (Nút to)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: ElevatedButton.icon(
+                      onPressed: _captureAndShare,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.share, color: Colors.white),
+                      label: const Text('Chia sẻ kết quả chẩn đoán', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Nút Xem chi tiết
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: ElevatedButton.icon(
+                      onPressed: _navigateToDetail,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2196F3),
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.menu_book_rounded, color: Colors.white),
+                      label: const Text('Xem thông tin y khoa chi tiết', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Nút Tìm nơi chữa
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: ElevatedButton.icon(
+                      onPressed: _showMapOptions,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF0066CC),
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: Color(0xFF0066CC)),
+                        ),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.map_rounded),
+                      label: const Text('Tìm nơi điều trị gần đây', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
                   ),
                 ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.coronavirus_rounded,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Chẩn đoán',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    diseaseName,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      height: 1.2,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+
+                // Nếu ĐANG share (_isSharing == true) thì hiện Footer Watermark
+                if (_isSharing)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
+                    margin: const EdgeInsets.only(top: 20),
+                    padding: const EdgeInsets.all(10),
+                    alignment: Alignment.center,
+                    child: Column(
                       children: [
-                        const Icon(
-                          Icons.verified_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Độ tin cậy: ${confidence.toStringAsFixed(1)}%',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: _getConfidenceColor(confidence),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            _getConfidenceLabel(confidence),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                        const Divider(),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(Icons.health_and_safety, color: Colors.grey, size: 16),
+                            SizedBox(width: 8),
+                            Text(
+                              "Chẩn đoán bởi CheckMyHealth AI",
+                              style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 14),
                             ),
-                          ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          "Tải ứng dụng để bảo vệ sức khỏe da liễu của bạn.",
+                          style: TextStyle(color: Colors.grey, fontSize: 10, fontStyle: FontStyle.italic),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
 
-            const SizedBox(height: 24),
-
-            // Description Card
-            _buildInfoCard(
-              context: context,
-              icon: Icons.description_rounded,
-              iconColor: const Color(0xFF0066CC),
-              title: 'Mô tả',
-              content: description,
-            ),
-
-            const SizedBox(height: 16),
-
-            // Recommendation Card
-            _buildInfoCard(
-              context: context,
-              icon: Icons.recommend_rounded,
-              iconColor: const Color(0xFF4CAF50),
-              title: 'Khuyến nghị',
-              content: recommendation,
-              isRecommendation: true,
-            ),
-
-            const SizedBox(height: 24),
-
-            // Action Buttons
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildActionButton(
-                      icon: Icons.share_rounded,
-                      label: 'Chia sẻ',
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF00B4D8), Color(0xFF0066CC)],
-                      ),
-                      onTap: () {
-                        // TODO: Implement share functionality
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildActionButton(
-                      icon: Icons.download_rounded,
-                      label: 'Tải xuống',
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
-                      ),
-                      onTap: () {
-                        // TODO: Implement download functionality
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 32),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoCard({
-    required BuildContext context,
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String content,
-    bool isRecommendation = false,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 4,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: iconColor,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: iconColor,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isRecommendation
-                  ? const Color(0xFF4CAF50).withOpacity(0.05)
-                  : const Color(0xFF0066CC).withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isRecommendation
-                    ? const Color(0xFF4CAF50).withOpacity(0.2)
-                    : const Color(0xFF0066CC).withOpacity(0.2),
-                width: 1,
-              ),
-            ),
-            child: Text(
-              content,
-              style: const TextStyle(
-                fontSize: 15,
-                color: Color(0xFF1A1A1A),
-                height: 1.6,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required Gradient gradient,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: gradient.colors.first.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: Colors.white, size: 22),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
+                const SizedBox(height: 40),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Color _getConfidenceColor(double confidence) {
-    if (confidence >= 80) return const Color(0xFF4CAF50);
-    if (confidence >= 60) return const Color(0xFFFF9800);
-    return const Color(0xFFE53935);
-  }
-
-  String _getConfidenceLabel(double confidence) {
-    if (confidence >= 80) return 'CAO';
-    if (confidence >= 60) return 'TRUNG BÌNH';
-    return 'THẤP';
-  }
-
-  void _showFullImage(BuildContext context, String imageUrl) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black87,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(16),
-        child: Stack(
-          children: [
-            // Full Image với InteractiveViewer (zoom, pan)
-            Center(
-              child: InteractiveViewer(
-                minScale: 0.5,
-                maxScale: 4.0,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.contain,
-                    loadingBuilder: (context, child, progress) => progress == null
-                        ? child
-                        : Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Center(
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          strokeWidth: 3,
-                        ),
-                      ),
-                    ),
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      padding: const EdgeInsets.all(40),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Icon(
-                        Icons.broken_image_rounded,
-                        size: 100,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            // Close Button
-            Positioned(
-              top: 16,
-              right: 16,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF0066CC), Color(0xFF00B4D8)],
-                  ),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF0066CC).withOpacity(0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => Navigator.pop(context),
-                    customBorder: const CircleBorder(),
-                    child: const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Icon(
-                        Icons.close_rounded,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            // Hint Text
-            Positioned(
-              bottom: 24,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.pinch_rounded, color: Colors.white, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Chụm để phóng to/thu nhỏ',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );

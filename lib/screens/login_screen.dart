@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:app/screens/home_screen.dart'; // Đổi 'app' thành tên dự án của bạn nếu khác
-import 'package:app/services/api_service.dart'; // Đổi 'app' thành tên dự án của bạn nếu khác
+import 'package:app/screens/home_screen.dart';
+import 'package:app/services/api_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'register_screen.dart';
 import 'main_screen.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:app/screens/forgot_password_screen.dart';
+import 'package:app/services/google_auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,6 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   final ApiService _apiService = ApiService();
+  final GoogleAuthService _googleAuthService = GoogleAuthService(); // <--- KHỞI TẠO SERVICE
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   @override
@@ -39,6 +41,32 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // === HÀM XỬ LÝ CHUNG: LƯU TOKEN VÀ ĐIỀU HƯỚNG ===
+  Future<void> _processLoginSuccess(String token) async {
+    // 1. Lưu Token
+    await _storage.write(key: 'token', value: token);
+
+    // 2. Giải mã Token
+    Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+
+    // 3. Lấy role (mặc định là 'user' nếu không có)
+    String userRole = decodedToken['role'] ?? 'user';
+
+    // 4. Lưu User ID
+    String userId = decodedToken['userId'].toString();
+    await _storage.write(key: 'userId', value: userId);
+
+    // 5. Lưu Role
+    await _storage.write(key: 'role', value: userRole);
+
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const MainScreen()),
+      );
+    }
+  }
+
+  // === HÀM XỬ LÝ ĐĂNG NHẬP THƯỜNG ===
   Future<void> _handleLogin() async {
     setState(() { _isLoading = true; });
 
@@ -48,30 +76,39 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text,
       );
 
-      // 1. Lưu Token
-      await _storage.write(key: 'token', value: token);
-
-      // 2. Giải mã Token
-      Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
-
-      // 3. Lấy role (mặc định là 'user' nếu không có)
-      String userRole = decodedToken['role'] ?? 'user';
-
-      // === THÊM VÀO: Lưu cả User ID ===
-      String userId = decodedToken['userId'].toString();
-      await _storage.write(key: 'userId', value: userId);
-
-      // 4. Lưu Role
-      await _storage.write(key: 'role', value: userRole);
-
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const MainScreen()),
-        );
-      }
+      await _processLoginSuccess(token); // Gọi hàm chung
 
     } catch (e) {
       _showSnackBar(e.toString(), isError: true);
+    } finally {
+      if (mounted) setState(() { _isLoading = false; });
+    }
+  }
+
+  // === HÀM XỬ LÝ ĐĂNG NHẬP GOOGLE ===
+  Future<void> _handleGoogleLogin() async {
+    setState(() { _isLoading = true; });
+
+    try {
+      // 1. Gọi Google Sign In Native
+      final googleData = await _googleAuthService.signInWithGoogle();
+
+      if (googleData == null) {
+        // User hủy đăng nhập, không làm gì cả
+        return;
+      }
+
+      // 2. Gửi thông tin Google lên Backend lấy Token
+      // googleData chứa: email, googleId, name, photoUrl, idToken
+      final token = await _apiService.googleLoginMobile(googleData);
+
+      // 3. Lưu Token và Điều hướng
+      await _processLoginSuccess(token);
+
+    } catch (e) {
+      _showSnackBar(e.toString(), isError: true);
+      // Nếu lỗi, thử đăng xuất Google để lần sau user chọn lại tài khoản được
+      await _googleAuthService.signOut();
     } finally {
       if (mounted) setState(() { _isLoading = false; });
     }
@@ -83,13 +120,11 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
-          // Thêm SingleChildScrollView để tránh lỗi khi bàn phím hiện
           child: SingleChildScrollView(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // === PHẦN UI ĐÃ BỊ MẤT ===
-                const SizedBox(height: 50), // Thêm khoảng đệm
+                const SizedBox(height: 30),
                 Text(
                   'CheckMyHealth',
                   style: TextStyle(
@@ -103,15 +138,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   'Đăng nhập để tiếp tục',
                   style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                 ),
-                // ==========================
                 const SizedBox(height: 40),
 
                 // Ô nhập Email
                 TextField(
                   controller: _emailController,
-                  decoration: InputDecoration( // <-- PHẦN DECORATION ĐÃ BỊ MẤT
+                  decoration: InputDecoration(
                     labelText: 'Email',
-                    prefixIcon: Icon(Icons.email_outlined),
+                    prefixIcon: const Icon(Icons.email_outlined),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -124,31 +158,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
-                  decoration: InputDecoration( // <-- PHẦN DECORATION ĐÃ BỊ MẤT
+                  decoration: InputDecoration(
                     labelText: 'Mật khẩu',
-                    prefixIcon: Icon(Icons.lock_outline),
+                    prefixIcon: const Icon(Icons.lock_outline),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 10),
 
-                // Nút Đăng nhập
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _handleLogin,
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Đăng nhập', style: TextStyle(fontSize: 16)),
-                ),
-
-                // === THÊM NÚT QUÊN MẬT KHẨU VÀO ĐÂY ===
+                // Nút Quên mật khẩu
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
@@ -164,13 +184,72 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
 
-                // === PHẦN UI ĐÃ BỊ MẤT ===
+                // Nút Đăng nhập
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _handleLogin,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    backgroundColor: Colors.blue[800], // Màu chủ đạo
+                    foregroundColor: Colors.white,
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                  )
+                      : const Text('Đăng nhập', style: TextStyle(fontSize: 16)),
+                ),
+
+                const SizedBox(height: 30),
+
+                // === PHẦN MỚI: DIVIDER HOẶC ===
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: Colors.grey[400])),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Text("Hoặc", style: TextStyle(color: Colors.grey[600])),
+                    ),
+                    Expanded(child: Divider(color: Colors.grey[400])),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // === PHẦN MỚI: NÚT GOOGLE ===
+                OutlinedButton.icon(
+                  onPressed: _isLoading ? null : _handleGoogleLogin,
+                  icon: Image.network(
+                    'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1200px-Google_%22G%22_logo.svg.png',
+                    height: 24,
+                    width: 24,
+                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.g_mobiledata, size: 30), // Fallback icon
+                  ),
+                  label: const Text(
+                      "Đăng nhập bằng Google",
+                      style: TextStyle(color: Colors.black87, fontSize: 16)
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    side: BorderSide(color: Colors.grey[300]!),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Nút Đăng ký
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text("Chưa có tài khoản?"),
+                    const Text("Chưa có tài khoản?"),
                     TextButton(
                       onPressed: () {
                         Navigator.push(
@@ -179,14 +258,14 @@ class _LoginScreenState extends State<LoginScreen> {
                               builder: (context) => const RegisterScreen()),
                         );
                       },
-                      child: Text(
+                      child: const Text(
                         'Đăng ký ngay',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
-                )
-                // ==========================
+                ),
+                const SizedBox(height: 20),
               ],
             ),
           ),

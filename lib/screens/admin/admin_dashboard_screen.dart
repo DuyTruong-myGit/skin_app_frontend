@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart'; // <-- Thư viện biểu đồ
 import 'package:app/config/app_theme.dart';
 import 'package:app/screens/admin/admin_user_list_screen.dart';
 import 'package:app/screens/admin/admin_feedback_screen.dart';
+import 'admin_disease_list_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -110,7 +111,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     );
                   },
                 ),
-
+                _buildMenuTile(
+                  context,
+                  title: 'QL Thông tin Bệnh lý',
+                  icon: Icons.library_books_outlined,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AdminDiseaseListScreen()),
+                    );
+                  },
+                ),
               ],
             ),
           );

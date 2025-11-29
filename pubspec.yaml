@@ -47,7 +47,7 @@ dependencies:
   provider: ^6.1.2
 
   #thư viện intl để định dạng ngày.
-  intl: ^0.18.1
+  intl: ^0.20.2
 
   # Thư viện giải mã Token (để đọc role)
   jwt_decoder: ^2.0.1
@@ -66,6 +66,24 @@ dependencies:
   share_plus: ^10.0.2
 
   permission_handler: ^11.3.1
+  table_calendar: ^3.2.0
+
+  url_launcher: ^6.3.2
+  #resize ảnh
+  flutter_image_compress: ^2.1.0
+  path_provider: ^2.1.1
+  path: ^1.8.3
+
+  flutter_local_notifications: ^17.0.0
+  timezone: ^0.9.2
+
+  flutter_localizations:
+    sdk: flutter
+
+  google_sign_in: ^6.1.5
+
+  screenshot: ^3.0.0      # Để chụp màn hình widget
+
 
 dev_dependencies:
   flutter_test:
@@ -92,6 +110,8 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Bật hỗ trợ đa ngôn ngữ
+  generate: false
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
