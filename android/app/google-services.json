@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "76516761410",
+    "project_id": "checkmyhealth-80eff",
+    "storage_bucket": "checkmyhealth-80eff.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:76516761410:android:d5ccfc861c62c7eb9db2db",
+        "android_client_info": {
+          "package_name": "com.example.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYZMOGjWMroRaeOJJCmx4QunTOChMc-_U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

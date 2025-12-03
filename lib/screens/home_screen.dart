@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:app/screens/disease/disease_list_screen.dart';
 import 'package:app/screens/history_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:app/screens/WatchApp/health_assistant_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(int) onTabChange;
@@ -908,7 +909,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 Icons.psychology_outlined,
                 const Color(0xFF9C27B0),
                 onTap: () {
-                  // TODO: Thêm navigation đến màn hình Trợ lý sức khỏe
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const HealthAssistantScreen()),
+                  );
                 },
               ),
             ],

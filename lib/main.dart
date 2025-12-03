@@ -8,11 +8,15 @@ import 'package:app/providers/profile_provider.dart';
 import 'package:app/services/notification_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:app/services/push_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService().init();
   await initializeDateFormatting('vi_VN', null);
+  await Firebase.initializeApp(); // Khởi tạo Firebase
+  await PushNotificationService.init(); // Khởi tạo Service thông báo
   runApp(
       MultiProvider( // Dùng MultiProvider để bọc cả 2
         providers: [

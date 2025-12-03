@@ -196,7 +196,7 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
         await ApiService().updateSchedule(scheduleId, payload);
       }
 
-      await _scheduleLocalNotification(scheduleId);
+      // await _scheduleLocalNotification(scheduleId);
 
       if (mounted) {
         Navigator.pop(context, true);
@@ -214,40 +214,40 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
   }
 
   /// Đặt lịch thông báo local
-  Future<void> _scheduleLocalNotification(int scheduleId) async {
-    try {
-      await NotificationService().cancelNotification(scheduleId);
-
-      if (_isRepeating) {
-        await NotificationService().scheduleNotification(
-          id: scheduleId,
-          title: 'Đến giờ: ${_titleController.text}',
-          body: 'Hãy thực hiện: ${_getVnTypeName(_selectedType)}',
-          time: _selectedTime,
-          days: _selectedDays,
-        );
-      } else {
-        final scheduledDateTime = DateTime(
-            _specificDate!.year,
-            _specificDate!.month,
-            _specificDate!.day,
-            _selectedTime.hour,
-            _selectedTime.minute
-        );
-
-        if (scheduledDateTime.isAfter(DateTime.now())) {
-          await NotificationService().scheduleOneTimeNotification(
-            id: scheduleId,
-            title: 'Đến giờ: ${_titleController.text}',
-            body: 'Nhắc nhở: ${_getVnTypeName(_selectedType)}',
-            date: scheduledDateTime,
-          );
-        }
-      }
-    } catch (e) {
-      print('⚠️ Lỗi đặt thông báo local: $e');
-    }
-  }
+  // Future<void> _scheduleLocalNotification(int scheduleId) async {
+  //   try {
+  //     await NotificationService().cancelNotification(scheduleId);
+  //
+  //     if (_isRepeating) {
+  //       await NotificationService().scheduleNotification(
+  //         id: scheduleId,
+  //         title: 'Đến giờ: ${_titleController.text}',
+  //         body: 'Hãy thực hiện: ${_getVnTypeName(_selectedType)}',
+  //         time: _selectedTime,
+  //         days: _selectedDays,
+  //       );
+  //     } else {
+  //       final scheduledDateTime = DateTime(
+  //           _specificDate!.year,
+  //           _specificDate!.month,
+  //           _specificDate!.day,
+  //           _selectedTime.hour,
+  //           _selectedTime.minute
+  //       );
+  //
+  //       if (scheduledDateTime.isAfter(DateTime.now())) {
+  //         await NotificationService().scheduleOneTimeNotification(
+  //           id: scheduleId,
+  //           title: 'Đến giờ: ${_titleController.text}',
+  //           body: 'Nhắc nhở: ${_getVnTypeName(_selectedType)}',
+  //           date: scheduledDateTime,
+  //         );
+  //       }
+  //     }
+  //   } catch (e) {
+  //     print('⚠️ Lỗi đặt thông báo local: $e');
+  //   }
+  // }
 
   String _getVnTypeName(String type) {
     switch (type) {

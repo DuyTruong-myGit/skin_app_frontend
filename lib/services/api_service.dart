@@ -939,5 +939,109 @@ class ApiService {
       );
     }
   }
-  
+
+
+  // === HÀM MỚI: ĐỔI MẬT KHẨU (LOGIC MỚI) ===
+  Future<String> changePassword(String oldPassword, String newPassword) async {
+    try {
+      final response = await _dio.post(
+        '/auth/change-password',
+        data: {
+          'oldPassword': oldPassword,
+          'newPassword': newPassword,
+        },
+        options: await _getAuthHeaders(), // Yêu cầu token
+      );
+      return response.data['message']; // "Đổi mật khẩu thành công!"
+    } on DioException catch (e) {
+      if (e.response != null) {
+        throw e.response!.data['message'] ?? 'Lỗi đổi mật khẩu';
+      }
+      throw 'Không thể kết nối đến máy chủ.';
+    } catch (e) {
+      throw 'Đã xảy ra lỗi không xác định.';
+    }
+  }
+
+
+
+  // Cập nhật FCM Token
+  Future<void> updateFcmToken(String token) async {
+    try {
+      await _dio.put(
+        '/profile/fcm-token',
+        data: {'fcmToken': token},
+        options: await _getAuthHeaders(),
+      );
+      print("✅ Đã cập nhật FCM Token lên server");
+    } catch (e) {
+      print("❌ Lỗi cập nhật FCM Token: $e");
+    }
+  }
+
+
+
+  // 1. Liên kết đồng hồ
+  Future<String> linkWatch(String deviceId) async {
+    try {
+      final response = await _dio.post(
+        '/watch/link',
+        data: {'deviceId': deviceId},
+        options: await _getAuthHeaders(),
+      );
+      return response.data['message'];
+    } on DioException catch (e) {
+      if (e.response != null) throw e.response!.data['message'];
+      throw 'Lỗi kết nối server';
+    }
+  }
+
+  // 2. Lấy dữ liệu đo mới nhất từ Watch
+  Future<Map<String, dynamic>?> getLatestWatchData() async {
+    try {
+      final response = await _dio.get(
+        '/watch/measurements/latest',
+        options: await _getAuthHeaders(),
+      );
+      return response.data;
+    } on DioException catch (e) {
+      // 404 nghĩa là chưa có dữ liệu đo nào
+      if (e.response?.statusCode == 404) return null;
+      throw 'Lỗi tải dữ liệu watch';
+    }
+  }
+
+  // === 3. Lấy dữ liệu chi tiết hôm nay (Để vẽ biểu đồ) ===
+  Future<List<Map<String, dynamic>>> getTodayMeasurements() async {
+    try {
+      final response = await _dio.get(
+        '/watch/measurements/today', // Backend đã có route này
+        options: await _getAuthHeaders(),
+      );
+      return List<Map<String, dynamic>>.from(response.data);
+    } catch (e) {
+      print("Lỗi lấy dữ liệu hôm nay: $e");
+      return [];
+    }
+  }
+
+  // === 4. Lấy thống kê tổng hợp (Trung bình, Max, Min) ===
+  Future<Map<String, dynamic>> getDailyStatistics() async {
+    try {
+      final response = await _dio.get(
+        '/watch/measurements/stats', // Backend đã có route này
+        queryParameters: {'period': 'today'}, // Lấy thống kê hôm nay
+        options: await _getAuthHeaders(),
+      );
+      return response.data['summary'];
+    } catch (e) {
+      print("Lỗi lấy thống kê: $e");
+      return {};
+    }
+  }
+
+
+
 }
+
+

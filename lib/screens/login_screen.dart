@@ -7,6 +7,7 @@ import 'main_screen.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:app/screens/forgot_password_screen.dart';
 import 'package:app/services/google_auth_service.dart';
+import 'package:app/services/push_notification_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -45,6 +46,9 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _processLoginSuccess(String token) async {
     // 1. Lưu Token
     await _storage.write(key: 'token', value: token);
+
+    // Gửi FCM Token lên server để bắt đầu nhận thông báo
+    await PushNotificationService.syncTokenToServer();
 
     // 2. Giải mã Token
     Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
