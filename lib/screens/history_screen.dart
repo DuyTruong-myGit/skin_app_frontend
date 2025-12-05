@@ -18,7 +18,7 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   final ApiService _apiService = ApiService();
   late Future<List<DiagnosisRecord>> _historyFuture;
-  bool _isNewestFirst = true; // true = mới nhất trước, false = cũ nhất trước
+  bool _isNewestFirst = true;
 
   @override
   void initState() {
@@ -44,20 +44,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
       records = await _apiService.getHistory();
     }
 
-    // Sắp xếp theo thời gian
     records.sort((a, b) {
       if (_isNewestFirst) {
-        return b.diagnosedAt.compareTo(a.diagnosedAt); // Mới nhất trước
+        return b.diagnosedAt.compareTo(a.diagnosedAt);
       } else {
-        return a.diagnosedAt.compareTo(b.diagnosedAt); // Cũ nhất trước
+        return a.diagnosedAt.compareTo(b.diagnosedAt);
       }
     });
 
     return records;
   }
 
+  // === SỬA HÀM NÀY: Cộng thêm 7 giờ ===
   String _formatDate(DateTime date) {
-    return DateFormat("HH:mm, 'Ngày' dd/MM/yyyy").format(date);
+    // Cộng thêm 7 giờ để chuyển từ UTC sang GMT+7 (Việt Nam)
+    final vietnamTime = date.add(const Duration(hours: 7));
+    return DateFormat("HH:mm, 'Ngày' dd/MM/yyyy").format(vietnamTime);
   }
 
   void _viewHistoryDetail(DiagnosisRecord record) {
@@ -120,9 +122,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-
-
-
   Future<void> _confirmDelete(int historyId) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -141,9 +140,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     if (confirm == true) {
       try {
-        // Gọi API xóa (đảm bảo bạn đã thêm hàm này vào ApiService như hướng dẫn trước)
         await _apiService.deleteDiagnosisHistory(historyId);
-        _refreshHistory(); // Tải lại danh sách sau khi xóa
+        _refreshHistory();
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

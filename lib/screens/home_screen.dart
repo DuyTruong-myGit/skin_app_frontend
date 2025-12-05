@@ -12,6 +12,8 @@ import 'package:app/screens/disease/disease_list_screen.dart';
 import 'package:app/screens/history_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:app/screens/WatchApp/health_assistant_screen.dart';
+import 'package:app/screens/heart_rate_screen.dart';
+
 
 class HomeScreen extends StatefulWidget {
   final Function(int) onTabChange;
@@ -915,6 +917,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   );
                 },
               ),
+              _buildCategoryCard(
+                'Đo Nhịp tim\n(Camera)',
+                Icons.monitor_heart_outlined,
+                const Color(0xFFE91E63), // Màu hồng đỏ nổi bật
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => HeartRateScreen()),
+                  );
+                },
+              ),
+
+
             ],
           ),
         ],

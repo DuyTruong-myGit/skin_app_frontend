@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:app/config/app_theme.dart';
 import 'package:app/screens/splash_screen.dart';
 import 'package:app/services/navigation_service.dart';
-import 'package:app/providers/theme_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:app/providers/profile_provider.dart';
 import 'package:app/services/notification_service.dart';
@@ -11,20 +10,23 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:app/services/push_notification_service.dart';
 
+// Đã XÓA import theme_provider.dart
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService().init();
   await initializeDateFormatting('vi_VN', null);
   await Firebase.initializeApp(); // Khởi tạo Firebase
   await PushNotificationService.init(); // Khởi tạo Service thông báo
+
   runApp(
-      MultiProvider( // Dùng MultiProvider để bọc cả 2
-        providers: [
-          ChangeNotifierProvider(create: (context) => ThemeProvider()),
-          ChangeNotifierProvider(create: (context) => ProfileProvider()), // Thêm dòng này
-        ],
-        child: const MyApp(),
-      ),
+    MultiProvider(
+      providers: [
+        // Đã XÓA ThemeProvider ở đây
+        ChangeNotifierProvider(create: (context) => ProfileProvider()),
+      ],
+      child: const MyApp(),
+    ),
   );
 }
 
@@ -33,34 +35,32 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Lắng nghe ThemeProvider bằng 'Consumer'
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, child) {
-        // 'themeProvider' bây giờ đã được định nghĩa
-        return MaterialApp(
-          navigatorKey: NavigationService.navigatorKey,
-          title: 'CheckMyHealth',
+    // Đã XÓA Consumer<ThemeProvider>
+    // Trả về trực tiếp MaterialApp
+    return MaterialApp(
+      navigatorKey: NavigationService.navigatorKey,
+      title: 'CheckMyHealth',
 
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: const [
-            Locale('vi', 'VN'), // Tiếng Việt
-            Locale('en', 'US'), // Tiếng Anh (dự phòng)
-          ],
-          locale: const Locale('vi', 'VN'),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('vi', 'VN'), // Tiếng Việt
+        Locale('en', 'US'), // Tiếng Anh (dự phòng)
+      ],
+      locale: const Locale('vi', 'VN'),
 
+      // --- CẤU HÌNH GIAO DIỆN ---
+      // Chỉ giữ lại theme sáng
+      theme: AppTheme.lightTheme,
 
-          theme: AppTheme.lightTheme,      // Theme Sáng
-          darkTheme: AppTheme.darkTheme,   // Theme Tối
-          themeMode: themeProvider.themeMode, // Lựa chọn của user
+      // Đã XÓA darkTheme: ...
+      // Đã XÓA themeMode: ...
 
-          debugShowCheckedModeBanner: false,
-          home: SplashScreen(),
-        );
-      },
+      debugShowCheckedModeBanner: false,
+      home: const SplashScreen(),
     );
   }
 }

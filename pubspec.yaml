@@ -87,6 +87,9 @@ dependencies:
   google_sign_in: ^6.1.5
 
   screenshot: ^3.0.0      # Để chụp màn hình widget
+  camera: ^0.11.3
+
+  heart_bpm: ^1.0.1      # Thêm thư viện này vào
 
 
 dev_dependencies:
@@ -153,3 +156,10 @@ flutter_launcher_icons:
   ios: true      # Bật cho iOS
   image_path: "assets/icon/AvatarCheckMyHealth.png" # Đường dẫn đến ảnh 1024x1024 của bạn
   min_sdk_android: 21 # Yêu cầu Android tối thiểu
+
+dependency_overrides:
+  intl: ^0.20.2
+  permission_handler: ^11.3.1
+  camera: ^0.10.5+9      # Ép heart_bpm dùng camera mới
+  camera_android: ^0.10.5 # Fix lỗi crash trên Poco X6 Pro
+  charts_flutter: ^0.12.0 # Ép dùng bản chart cũ cho heart_bpm
