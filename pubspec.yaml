@@ -86,10 +86,11 @@ dependencies:
 
   google_sign_in: ^6.1.5
 
-  screenshot: ^3.0.0      # Để chụp màn hình widget
-  camera: ^0.11.3
+  screenshot: ^3.0.0
 
-  heart_bpm: ^1.0.1      # Thêm thư viện này vào
+  camera: ^0.10.5+9
+
+  heart_bpm: ^1.1.1+0
 
 
 dev_dependencies:
@@ -160,6 +161,5 @@ flutter_launcher_icons:
 dependency_overrides:
   intl: ^0.20.2
   permission_handler: ^11.3.1
-  camera: ^0.10.5+9      # Ép heart_bpm dùng camera mới
-  camera_android: ^0.10.5 # Fix lỗi crash trên Poco X6 Pro
-  charts_flutter: ^0.12.0 # Ép dùng bản chart cũ cho heart_bpm
+  camera: ^0.10.5+9
+  camera_android: ^0.10.5 # Fix lỗi crash trên Android 14

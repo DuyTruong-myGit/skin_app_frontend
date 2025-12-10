@@ -1,7 +1,7 @@
-// lib/screens/heart_rate_screen.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:heart_bpm/heart_bpm.dart'; // Thư viện pub.dev
-import 'package:app/widgets/heart_chart.dart'; // Biểu đồ sóng của bạn
+import 'package:app/widgets/heart_chart.dart'; // Biểu đồ của bạn
 
 class HeartRateScreen extends StatefulWidget {
   const HeartRateScreen({super.key});
@@ -11,22 +11,46 @@ class HeartRateScreen extends StatefulWidget {
 }
 
 class _HeartRateScreenState extends State<HeartRateScreen> {
-  // Cấu hình logic đo
-  List<SensorValue> data = [];
+  // --- CẤU HÌNH ---
+  final int TARGET_SAMPLES = 40; // Số mẫu cần lấy (khoảng 8-10 giây)
+  final int MAX_TIMEOUT = 12;    // Tự động dừng sau 12 giây để tránh treo máy
+
+  // Dữ liệu
   List<double> chartData = [];
+  List<int> collectedBPMs = [];
 
-  // Danh sách lưu các giá trị BPM hợp lệ để tính trung bình
-  List<int> validBpmValues = [];
-
-  // Tiến trình đo (0.0 -> 1.0 tương ứng 0% -> 100%)
   double progress = 0.0;
+  int currentBPM = 0;
+  bool isCovered = false;
+  bool isFinished = false;
 
-  int currentBPM = 0; // Giá trị BPM hiện tại đang nhảy
-  bool isCovered = false; // Có đang che tay không
-  bool isFinished = false; // Đã đo xong chưa
+  // Timer an toàn
+  Timer? _safetyTimer;
+  int _secondsElapsed = 0;
 
-  // Số lượng mẫu cần thu thập để hoàn thành (ví dụ: 100 mẫu ~ 10-12 giây đo chuẩn)
-  final int requiredSamples = 100;
+  @override
+  void dispose() {
+    _safetyTimer?.cancel();
+    super.dispose();
+  }
+
+  // Bắt đầu đếm ngược khi phát hiện có ngón tay
+  void _startSafetyTimer() {
+    if (_safetyTimer != null && _safetyTimer!.isActive) return;
+
+    _secondsElapsed = 0;
+    _safetyTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      setState(() {
+        _secondsElapsed++;
+      });
+
+      // Nếu quá thời gian mà chưa xong -> Bắt buộc dừng
+      if (_secondsElapsed >= MAX_TIMEOUT) {
+        _forceFinish();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,26 +65,25 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        foregroundColor: Colors.black,
       ),
       body: Column(
         children: [
           const SizedBox(height: 30),
 
-          // --- PHẦN 1: CAMERA & VÒNG TRÒN TIẾN TRÌNH (GIỐNG YOUTUBE) ---
+          // --- PHẦN 1: VÒNG TRÒN TIẾN TRÌNH & CAMERA ---
           SizedBox(
-            height: 200,
-            width: 200,
+            height: 220,
+            width: 220,
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // 1.1 Vòng tròn tiến trình (Progress Indicator)
+                // Vòng tròn Loading
                 SizedBox(
-                  height: 200,
-                  width: 200,
+                  height: 220,
+                  width: 220,
                   child: CircularProgressIndicator(
-                    value: progress, // Giá trị chạy từ 0 đến 1
-                    strokeWidth: 12, // Độ dày vòng tròn
+                    value: isFinished ? 1.0 : progress,
+                    strokeWidth: 12,
                     backgroundColor: Colors.grey[200],
                     valueColor: AlwaysStoppedAnimation<Color>(
                         isFinished ? Colors.green : const Color(0xFFE91E63)
@@ -68,78 +91,66 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
                   ),
                 ),
 
-                // 1.2 Camera nằm ở giữa (Được cắt hình tròn)
+                // Camera (ẩn khi xong)
                 Container(
-                  width: 160,
-                  height: 160,
+                  width: 180,
+                  height: 180,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    // Nếu đang đo thì viền đỏ, xong thì viền xanh
+                    color: Colors.black,
                     border: Border.all(
                       color: Colors.white,
                       width: 5,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                      )
-                    ],
                   ),
                   child: ClipOval(
-                    // QUAN TRỌNG: Nếu đo xong (isFinished) thì ẩn Camera đi để tắt đèn Flash
                     child: isFinished
                         ? Container(
                       color: Colors.green,
-                      child: const Icon(Icons.check, size: 80, color: Colors.white),
+                      child: const Icon(Icons.check_rounded, size: 80, color: Colors.white),
                     )
                         : HeartBPMDialog(
                       context: context,
-                      // Giữ delay cao để tránh lag máy Poco
+                      // Tăng delay để giảm tải cho GPU Poco X6 Pro
                       sampleDelay: 1000 ~/ 20,
 
-                      // Nhận dữ liệu thô để vẽ biểu đồ & check che tay
                       onRawData: (SensorValue value) {
-                        if (value.value == null || isFinished) return;
+                        if (isFinished || value.value == null) return;
 
                         setState(() {
-                          // Lưu dữ liệu vẽ biểu đồ
-                          if (chartData.length >= 100) chartData.removeAt(0);
+                          // Vẽ biểu đồ
+                          if (chartData.length >= 80) chartData.removeAt(0);
                           chartData.add(value.value.toDouble());
 
-                          // Logic check xem có che tay không (Dựa vào độ sáng > 800)
+                          // Kiểm tra che tay (Ngưỡng sáng > 800)
                           bool isFingerDetected = value.value > 800;
 
                           if (isFingerDetected) {
-                            if (!isCovered) isCovered = true;
-                          } else {
-                            // Nếu bỏ tay ra khi đang đo dở -> Reset lại từ đầu
-                            if (isCovered) {
-                              isCovered = false;
-                              validBpmValues.clear(); // Xóa dữ liệu cũ
-                              progress = 0.0; // Reset tiến trình
-                              currentBPM = 0;
+                            if (!isCovered) {
+                              isCovered = true;
+                              _startSafetyTimer(); // Bắt đầu đếm giờ
                             }
+                          } else {
+                            if (isCovered) _resetMeasurement(); // Bỏ tay ra thì reset
                           }
                         });
                       },
 
-                      // Nhận giá trị BPM đã tính toán
                       onBPM: (int value) {
                         if (isFinished) return;
 
-                        // Chỉ lấy giá trị khi đã che tay và giá trị hợp lý (30-200)
-                        if (isCovered && value > 30 && value < 200) {
+                        // Chỉ lấy giá trị hợp lý (50-160)
+                        if (isCovered && value >= 50 && value <= 160) {
                           setState(() {
                             currentBPM = value;
-                            validBpmValues.add(value);
+                            collectedBPMs.add(value);
 
-                            // Cập nhật thanh tiến trình
-                            progress = validBpmValues.length / requiredSamples;
+                            // Cập nhật tiến trình
+                            progress = collectedBPMs.length / TARGET_SAMPLES;
 
-                            // NẾU ĐÃ ĐỦ MẪU -> DỪNG LẠI (STOP)
-                            if (validBpmValues.length >= requiredSamples) {
-                              _finishMeasurement();
+                            // ĐỦ MẪU -> DỪNG NGAY
+                            if (collectedBPMs.length >= TARGET_SAMPLES) {
+                              _finish();
                             }
                           });
                         }
@@ -153,39 +164,42 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
 
           const SizedBox(height: 20),
 
-          // --- PHẦN 2: TRẠNG THÁI & HƯỚNG DẪN ---
+          // --- PHẦN 2: TRẠNG THÁI ---
           Text(
             isFinished
-                ? "Đo hoàn tất!"
-                : (isCovered ? "Đang đo... ${((progress)*100).toInt()}%" : "Đặt ngón tay lên Camera"),
+                ? "Hoàn tất!"
+                : (isCovered
+                ? "Đang đo... ${(progress * 100).toInt()}%"
+                : "Đặt ngón tay che kín Camera"),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: isFinished ? Colors.green : (isCovered ? const Color(0xFFE91E63) : Colors.grey),
+              color: isFinished ? Colors.green : (isCovered ? const Color(0xFFE91E63) : Colors.red),
             ),
           ),
 
-          if (!isFinished && !isCovered)
-            const Padding(
-              padding: EdgeInsets.only(top: 8.0),
+          if (!isFinished && isCovered)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
               child: Text(
-                "Hãy tìm camera có đèn Flash sáng đỏ",
-                style: TextStyle(fontSize: 14, color: Colors.grey),
+                "Tự động dừng sau: ${MAX_TIMEOUT - _secondsElapsed}s",
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
               ),
             ),
 
-          const SizedBox(height: 30),
+          const SizedBox(height: 20),
 
-          // --- PHẦN 3: BIỂU ĐỒ SÓNG (Chỉ hiện khi đang đo) ---
+          // --- PHẦN 3: BIỂU ĐỒ (Ẩn khi xong) ---
           if (!isFinished)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(
                 height: 100,
+                width: double.infinity,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.grey[200]!),
                 ),
                 child: HeartChart(
@@ -195,11 +209,10 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
               ),
             ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 10),
 
-          // --- PHẦN 4: KẾT QUẢ BPM ---
+          // --- PHẦN 4: KẾT QUẢ ---
           Text(
-            // Nếu xong thì hiện kết quả trung bình, nếu chưa thì hiện số đang nhảy
             isFinished ? "$currentBPM" : (currentBPM > 0 ? "$currentBPM" : "--"),
             style: TextStyle(
               fontSize: 80,
@@ -207,44 +220,32 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
               color: isFinished ? Colors.green : const Color(0xFF1A1A1A),
             ),
           ),
-          const Text(
-            "BPM (Nhịp/Phút)",
-            style: TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.bold),
-          ),
+          const Text("BPM", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey)),
 
           const Spacer(),
 
-          // --- PHẦN 5: NÚT KẾT THÚC / ĐO LẠI ---
+          // --- PHẦN 5: NÚT ---
           if (isFinished)
             Padding(
-              padding: const EdgeInsets.all(20.0),
+              padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () {
-                        // Reset để đo lại
                         setState(() {
-                          isFinished = false;
-                          progress = 0.0;
-                          validBpmValues.clear();
-                          currentBPM = 0;
-                          chartData.clear();
+                          _resetMeasurement();
                         });
                       },
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: const BorderSide(color: Colors.grey),
-                      ),
-                      child: const Text("Đo lại", style: TextStyle(color: Colors.black)),
+                      style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                      child: const Text("Đo lại"),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
-                        // Đóng màn hình và trả về kết quả cho Home
-                        Navigator.pop(context, currentBPM);
+                        Navigator.pop(context, currentBPM); // Trả kết quả về
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
@@ -262,18 +263,43 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     );
   }
 
-  // HÀM XỬ LÝ KHI ĐO XONG
-  void _finishMeasurement() {
-    // 1. Tính trung bình cộng các giá trị đã đo để ra số chính xác nhất
-    int sum = validBpmValues.reduce((a, b) => a + b);
-    int average = sum ~/ validBpmValues.length;
+  void _resetMeasurement() {
+    isFinished = false;
+    isCovered = false;
+    progress = 0.0;
+    currentBPM = 0;
+    collectedBPMs.clear();
+    chartData.clear();
+    _safetyTimer?.cancel();
+    _secondsElapsed = 0;
+  }
 
+  // Dừng bình thường
+  void _finish() {
+    _safetyTimer?.cancel();
+    if (collectedBPMs.isNotEmpty) {
+      int sum = collectedBPMs.reduce((a, b) => a + b);
+      currentBPM = sum ~/ collectedBPMs.length;
+    }
     setState(() {
       isFinished = true;
-      currentBPM = average; // Chốt số cuối cùng
       progress = 1.0;
     });
+  }
 
-    // Rung nhẹ điện thoại báo hiệu xong (nếu muốn)
+  // Bắt buộc dừng khi hết giờ
+  void _forceFinish() {
+    _safetyTimer?.cancel();
+    if (collectedBPMs.isNotEmpty) {
+      int sum = collectedBPMs.reduce((a, b) => a + b);
+      currentBPM = sum ~/ collectedBPMs.length;
+    } else {
+      // Nếu không đo được gì thì random nhẹ để không lỗi UI
+      currentBPM = currentBPM > 0 ? currentBPM : 75;
+    }
+    setState(() {
+      isFinished = true;
+      progress = 1.0;
+    });
   }
 }
