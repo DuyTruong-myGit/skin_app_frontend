@@ -12,7 +12,7 @@ import 'package:app/screens/disease/disease_list_screen.dart';
 import 'package:app/screens/history_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:app/screens/WatchApp/health_assistant_screen.dart';
-import 'package:app/screens/heart_rate_screen.dart';
+import 'package:app/screens/heart_rate_monitor.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -924,7 +924,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => HeartRateScreen()),
+                    MaterialPageRoute(builder: (context) => const HeartRateMonitor()),
                   );
                 },
               ),
