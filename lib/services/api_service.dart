@@ -13,7 +13,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:intl/intl.dart';
 import 'package:app/services/google_auth_service.dart';
-
+import 'package:app/services/socket_service.dart';
 class ApiService {
   final Dio _dio = Dio();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
@@ -89,7 +89,6 @@ class ApiService {
           'password': password,
         },
       );
-      // ===================================
       return response.data['token'];
     } on DioException catch (e) {
       if (e.response != null) throw e.response!.data['message'];
@@ -478,6 +477,7 @@ class ApiService {
 
   /// Xóa tất cả token và điều hướng về trang Đăng nhập
   Future<void> logout() async {
+    SocketService().disconnect();
     // 1. Xóa tất cả dữ liệu an toàn
     await _storage.delete(key: 'token');
     await _storage.delete(key: 'role');
@@ -1037,6 +1037,20 @@ class ApiService {
     } catch (e) {
       print("Lỗi lấy thống kê: $e");
       return {};
+    }
+  }
+
+  // [MỚI] Hủy liên kết đồng hồ
+  Future<String> unlinkWatch() async {
+    try {
+      final response = await _dio.post(
+        '/watch/unlink',
+        options: await _getAuthHeaders(),
+      );
+      return response.data['message']; // "Đã hủy kết nối..."
+    } on DioException catch (e) {
+      if (e.response != null) throw e.response!.data['message'];
+      throw 'Lỗi kết nối server';
     }
   }
 
