@@ -363,6 +363,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
 // === HÀM MỚI: HIỂN THỊ LỖI ĐẸP HƠN ===
   void _showErrorDialog(String errorMessage) {
+    // Xác định icon và màu sắc dựa trên nội dung lỗi
+    IconData icon = Icons.error_outline;
+    Color color = const Color(0xFFE53935);
+    String title = "Không thể phân tích";
+
+    // Logic xử lý lỗi "Not Skin" từ Backend
+    if (errorMessage.contains("không phải là vùng da") || errorMessage.contains("not_skin")) {
+      icon = Icons.no_photography_outlined;
+      color = Colors.orange;
+      title = "Ảnh không hợp lệ";
+    }
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -376,27 +388,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE53935).withOpacity(0.1),
+                  color: color.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.error_outline,
-                  size: 48,
-                  color: Color(0xFFE53935),
-                ),
+                child: Icon(icon, size: 40, color: color),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Không thể phân tích',
-                style: TextStyle(
+              Text(
+                title,
+                style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF1A1A1A),
                 ),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
               Text(
-                errorMessage,
+                errorMessage, // Hiển thị thông báo chi tiết từ Backend
                 style: TextStyle(
                   fontSize: 15,
                   color: Colors.grey[700],
@@ -412,10 +421,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        side: BorderSide(color: Colors.grey[300]!),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       child: const Text('Đóng'),
                     ),
@@ -425,16 +431,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(context);
-                        _startDiagnosis(); // Thử lại
+                        _startDiagnosis(); // Thử lại ngay
                       },
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
                         backgroundColor: const Color(0xFF0066CC),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text('Thử lại'),
+                      child: const Text('Chụp lại'),
                     ),
                   ),
                 ],

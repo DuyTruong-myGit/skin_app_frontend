@@ -21,8 +21,8 @@ class ApiService {
   ApiService() {
     // Dùng URL từ file config
     _dio.options.baseUrl = AppConfig.baseUrl;
-    _dio.options.connectTimeout = const Duration(milliseconds: 60000);
-    _dio.options.receiveTimeout = const Duration(milliseconds: 60000);
+    _dio.options.connectTimeout = const Duration(milliseconds: 120000);
+    _dio.options.receiveTimeout = const Duration(milliseconds: 120000);
 
     // --- INTERCEPTOR XỬ LÝ LỖI 401 (PRODUCTION-READY) ---
     _dio.interceptors.add(InterceptorsWrapper(

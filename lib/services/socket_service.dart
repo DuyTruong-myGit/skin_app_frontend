@@ -11,79 +11,83 @@ class SocketService {
   IO.Socket? _socket;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final _watchDataController = StreamController<Map<String, dynamic>>.broadcast();
-  Stream<Map<String, dynamic>> get watchDataStream => _watchDataController.stream;
 
+  Stream<Map<String, dynamic>> get watchDataStream => _watchDataController.stream;
   bool get isConnected => _socket?.connected ?? false;
 
   Future<void> connect() async {
     try {
-      if (_socket != null && _socket!.connected) {
-        return;
-      }
+      // Nếu đang kết nối thì thôi
+      if (_socket != null && _socket!.connected) return;
 
       final token = await _storage.read(key: 'token');
       if (token == null) {
-        print('❌ Socket: Không tìm thấy token');
+        print('❌ SOCKET DEBUG: Không tìm thấy token');
         return;
       }
 
-      // === SỬA LỖI TẠI ĐÂY: XỬ LÝ URL ===
-      // Lấy URL từ config
+      // 1. Xử lý URL (Cắt bỏ /api nếu có)
       String socketUrl = AppConfig.baseUrl;
-
-      // Nếu URL có đuôi "/api", cắt bỏ đi để về root domain
-      // Ví dụ: .../api -> .../
       if (socketUrl.endsWith('/api')) {
         socketUrl = socketUrl.substring(0, socketUrl.length - 4);
       } else if (socketUrl.endsWith('/api/')) {
         socketUrl = socketUrl.substring(0, socketUrl.length - 5);
       }
 
-      print("🔌 Đang kết nối tới Socket URL: $socketUrl");
-      // Kết quả mong đợi: https://checkmyhealth-api.onrender.com
+      print("🔌 SOCKET DEBUG: Đang kết nối tới: $socketUrl");
+      print("🔑 SOCKET DEBUG: Token (4 ký tự đầu): ${token.substring(0, 4)}...");
 
+      // 2. Cấu hình Socket tối ưu cho Render (HTTPS)
       _socket = IO.io(
         socketUrl,
         IO.OptionBuilder()
             .setTransports(['websocket'])
             .disableAutoConnect()
             .setAuth({'token': token})
-            .setReconnectionAttempts(5)
+        // Tăng số lần thử lại
+            .setReconnectionAttempts(10)
+        // Tăng thời gian chờ (Timeout) lên 20 giây để tránh bị ngắt kết nối sớm
+            .setTimeout(20000)
+        // Bật tính năng tự động kết nối lại
+            .enableReconnection()
             .build(),
       );
 
+      // 3. Kết nối
       _socket!.connect();
 
+      // --- 4. LẮNG NGHE LOG ---
       _socket!.onConnect((_) {
-        print('✅ Socket Connected ID: ${_socket!.id}');
+        print('✅ SOCKET DEBUG: KẾT NỐI THÀNH CÔNG! (ID: ${_socket!.id})');
       });
 
       _socket!.onDisconnect((_) {
-        print('❌ Socket Disconnected');
+        print('❌ SOCKET DEBUG: Mất kết nối');
       });
 
-      // Lắng nghe lỗi kết nối để dễ debug
       _socket!.onConnectError((data) {
-        print('❌ Socket Error: $data');
+        print('❌ SOCKET DEBUG: Lỗi kết nối (Connect Error): $data');
       });
 
       _socket!.onError((data) {
-        print('❌ Socket General Error: $data');
+        print('❌ SOCKET DEBUG: Lỗi chung (Error): $data');
       });
 
+      // Lắng nghe dữ liệu
       _socket!.on('watch:update', (data) {
-        print('⌚ Nhận dữ liệu từ Watch: $data');
+        print('⚡ SOCKET DEBUG: Nhận dữ liệu WATCH: $data');
         if (data != null) {
           _watchDataController.add(Map<String, dynamic>.from(data));
         }
       });
 
     } catch (e) {
-      print('❌ Lỗi khởi tạo Socket: $e');
+      print('❌ SOCKET DEBUG: Exception khi khởi tạo: $e');
     }
   }
 
   void disconnect() {
+    print('🔌 SOCKET DEBUG: Đang ngắt kết nối...');
     _socket?.disconnect();
     _socket = null;
   }

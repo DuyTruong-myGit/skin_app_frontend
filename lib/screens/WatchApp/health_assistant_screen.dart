@@ -50,6 +50,7 @@ class _HealthAssistantScreenState extends State<HealthAssistantScreen> {
     try {
       // Lấy Profile để check xem đã link đồng hồ chưa
       final profile = await _apiService.getProfile();
+      print("🕵️‍♂️ ID CỦA TÔI LÀ: ${profile['id']} - Email: ${profile['email']}");
       final deviceId = profile['watchDeviceId']; // Đảm bảo backend trả về field này
 
       if (deviceId != null) {
