@@ -10,8 +10,6 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:app/services/push_notification_service.dart';
 
-// Đã XÓA import theme_provider.dart
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService().init();

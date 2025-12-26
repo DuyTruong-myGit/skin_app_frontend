@@ -81,7 +81,7 @@ class ApiService {
   // API Đăng nhập
   Future<String> login(String email, String password) async {
     try {
-      // === SỬA LỖI Ở ĐÂY: Thêm data trở lại ===
+      print("🚀 Bắt đầu gửi yêu cầu đăng nhập..."); // Log 1
       final response = await _dio.post(
         '/auth/login',
         data: {
@@ -89,12 +89,52 @@ class ApiService {
           'password': password,
         },
       );
-      return response.data['token'];
+
+      // In toàn bộ dữ liệu Server trả về để xem
+      print("✅ Server phản hồi: ${response.data}"); // Log 2
+
+      // --- ĐOẠN CODE SỬA LỖI (Fix List vs Map) ---
+      // Kiểm tra xem dữ liệu là List (Mảng) hay Map (Object)
+      if (response.data is List) {
+        if (response.data.isEmpty) throw "Dữ liệu rỗng!";
+        // Nếu là List, token thường nằm trong phần tử đầu tiên
+        // Thử lấy ['token'] hoặc lấy chính phần tử đó nếu nó là chuỗi
+        var item = response.data[0];
+        if (item is Map) {
+          return item['token'];
+        } else {
+          return item.toString(); // Trường hợp server trả về mảng chuỗi ["token..."]
+        }
+      } else {
+        // Nếu là Map bình thường
+        return response.data['token'];
+      }
+      // -------------------------------------------
+
     } on DioException catch (e) {
-      if (e.response != null) throw e.response!.data['message'];
-      throw 'Không thể kết nối đến máy chủ.';
+      print("❌ Dio Error: ${e.response?.statusCode} - ${e.response?.data}");
+
+      // === SỬA ĐOẠN NÀY ===
+      if (e.response != null && e.response!.data != null) {
+        final data = e.response!.data;
+
+        // 1. Nếu data là Map (JSON chuẩn từ backend của bạn)
+        if (data is Map<String, dynamic>) {
+          throw data['message'] ?? 'Lỗi từ server (${e.response!.statusCode})';
+        }
+
+        // 2. Nếu data là String (HTML lỗi từ Render/Proxy)
+        if (data is String) {
+          // Chỉ lấy một đoạn ngắn để hiển thị, tránh in cả trang HTML dài
+          print("HTML Error: $data");
+          throw 'Lỗi Server: Phản hồi không đúng định dạng (HTML). Kiểm tra lại URL API.';
+        }
+      }
+
+      throw 'Không thể kết nối đến máy chủ (${e.message}).';
     } catch (e) {
-      throw 'Đã xảy ra lỗi không xác định.';
+      print("❌ Lỗi Code (Exception): $e"); // Log lỗi code (như lỗi String/int)
+      throw 'Đã xảy ra lỗi xử lý dữ liệu: $e';
     }
   }
 

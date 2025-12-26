@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app/services/api_service.dart';
 
-// Import các trang
+// Import các trang (Giữ nguyên logic import)
 import 'package:app/screens/static/about_screen.dart';
 import 'package:app/screens/static/privacy_screen.dart';
 import 'package:app/screens/static/terms_screen.dart';
@@ -13,92 +13,45 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Không cần themeProvider nữa
+    // Logic giữ nguyên
     final apiService = ApiService();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FBFF),
+      backgroundColor: const Color(0xFFF9FAFB), // Màu nền chuẩn Home
       appBar: AppBar(
         elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF0066CC), Color(0xFF00B4D8)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
+        backgroundColor: Colors.white,
+        centerTitle: true,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new, size: 20, color: Colors.grey.shade700),
+          onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Cài đặt',
           style: TextStyle(
-            fontSize: 22,
+            fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: Colors.black87,
           ),
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: Colors.grey.shade200, height: 1),
+        ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // === TÀI KHOẢN SECTION ===
-          _buildSectionTitle(context, 'Tài khoản', Icons.account_circle_outlined),
-          const SizedBox(height: 12),
-          _buildCard(
-            context,
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              leading: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF0066CC), Color(0xFF00B4D8)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF0066CC).withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.person_outline, color: Colors.white, size: 26),
-              ),
-              title: const Text(
-                'Hồ sơ cá nhân',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF1A1A1A),
-                  height: 1.3,
-                ),
-              ),
-              subtitle: const Text(
-                'Thay đổi tên, ảnh đại diện, mật khẩu',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF666666),
-                  height: 1.4,
-                ),
-              ),
-              trailing: Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FBFF),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: Color(0xFF0066CC),
-                ),
-              ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            // === TÀI KHOẢN SECTION ===
+            _buildSectionHeader('Tài khoản'),
+            const SizedBox(height: 12),
+            _buildSettingItem(
+              context,
+              title: 'Hồ sơ cá nhân',
+              desc: 'Thay đổi tên, ảnh đại diện',
+              icon: Icons.person_outline,
+              color: Colors.blue, // Theme Blue
               onTap: () {
                 Navigator.push(
                   context,
@@ -106,198 +59,172 @@ class SettingsScreen extends StatelessWidget {
                 );
               },
             ),
-          ),
 
-          // ĐÃ XÓA PHẦN GIAO DIỆN (Theme) Ở ĐÂY
+            const SizedBox(height: 24),
 
-          const SizedBox(height: 24),
+            // === HỖ TRỢ & PHÁP LÝ SECTION ===
+            _buildSectionHeader('Hỗ trợ & Pháp lý'),
+            const SizedBox(height: 12),
 
-          // === HỖ TRỢ & PHÁP LÝ SECTION ===
-          _buildSectionTitle(context, 'Hỗ trợ & Pháp lý', Icons.support_agent_outlined),
-          const SizedBox(height: 12),
-          _buildCard(
-            context,
-            child: Column(
-              children: [
-                _buildMenuItem(
+            _buildSettingItem(
+              context,
+              title: 'Gửi phản hồi / Báo lỗi',
+              desc: 'Đóng góp ý kiến cho ứng dụng',
+              icon: Icons.feedback_outlined,
+              color: Colors.purple, // Theme Purple
+              onTap: () {
+                Navigator.push(
                   context,
-                  icon: Icons.feedback_outlined,
-                  title: 'Gửi phản hồi / Báo lỗi',
-                  iconColor: const Color(0xFF0066CC),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const FeedbackScreen()),
-                    );
-                  },
-                ),
-                _buildDivider(),
-                _buildMenuItem(
-                  context,
-                  icon: Icons.description_outlined,
-                  title: 'Điều khoản sử dụng',
-                  iconColor: const Color(0xFF00B4D8),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const TermsScreen()),
-                    );
-                  },
-                ),
-                _buildDivider(),
-                _buildMenuItem(
-                  context,
-                  icon: Icons.privacy_tip_outlined,
-                  title: 'Chính sách quyền riêng tư',
-                  iconColor: const Color(0xFF4CAF50),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const PrivacyScreen()),
-                    );
-                  },
-                ),
-                _buildDivider(),
-                _buildMenuItem(
-                  context,
-                  icon: Icons.info_outline,
-                  title: 'Giới thiệu',
-                  iconColor: const Color(0xFFFF9800),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const AboutScreen()),
-                    );
-                  },
-                ),
-              ],
+                  MaterialPageRoute(builder: (context) => const FeedbackScreen()),
+                );
+              },
             ),
-          ),
+            const SizedBox(height: 10), // Gap giữa các item giống Categories
 
-          const SizedBox(height: 32),
-        ],
+            _buildSettingItem(
+              context,
+              title: 'Điều khoản sử dụng',
+              desc: 'Quy định sử dụng dịch vụ',
+              icon: Icons.description_outlined,
+              color: Colors.orange, // Theme Orange
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const TermsScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+
+            _buildSettingItem(
+              context,
+              title: 'Chính sách quyền riêng tư',
+              desc: 'Cam kết bảo mật thông tin',
+              icon: Icons.privacy_tip_outlined,
+              color: Colors.green, // Theme Green
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PrivacyScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+
+            _buildSettingItem(
+              context,
+              title: 'Giới thiệu',
+              desc: 'Phiên bản v1.0.0',
+              icon: Icons.info_outline,
+              color: Colors.grey, // Theme Grey
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AboutScreen()),
+                );
+              },
+            ),
+
+            const SizedBox(height: 40),
+
+            // Footer nhỏ (Optional - Style giống footer Home)
+            Text(
+              'Health Assistant App © 2024',
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // Widget xây dựng tiêu đề section với thanh màu bên trái
-  Widget _buildSectionTitle(BuildContext context, String title, IconData icon) {
+  // Header giống "Dịch vụ chuyên khoa" / "Chỉ số sức khỏe"
+  Widget _buildSectionHeader(String title) {
     return Row(
       children: [
-        Container(
-          width: 4,
-          height: 24,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0066CC), Color(0xFF00B4D8)],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Icon(icon, size: 24, color: const Color(0xFF0066CC)),
-        const SizedBox(width: 8),
         Text(
-          title,
+          title.toUpperCase(), // Có thể để Upper hoặc Normal tùy thích, Home dùng Normal nhưng đậm
           style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A1A),
-            height: 1.3,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+            letterSpacing: 0.5,
           ),
         ),
       ],
     );
   }
 
-  // Widget xây dựng card với shadow
-  Widget _buildCard(BuildContext context, {required Widget child}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0066CC).withOpacity(0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: child,
-      ),
-    );
-  }
-
-  // Widget xây dựng menu item
-  Widget _buildMenuItem(
+  // Item giống "Categories" (Chẩn đoán, Lịch sử...)
+  Widget _buildSettingItem(
       BuildContext context, {
-        required IconData icon,
         required String title,
-        required Color iconColor,
+        required String desc,
+        required IconData icon,
+        required Color color,
         required VoidCallback onTap,
       }) {
     return Material(
-      color: Colors.transparent,
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(8),
+          ),
           child: Row(
             children: [
+              // Icon Box style chuẩn Home Screen (QuickActions/Categories)
               Container(
-                width: 44,
-                height: 44,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  color: color.withOpacity(0.1), // shade50 simulation
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: color.withOpacity(0.3)), // border shade200 simulation
                 ),
-                child: Icon(icon, color: iconColor, size: 24),
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: color, // shade700 logic (thường dùng base color đậm hơn chút)
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF1A1A1A),
-                    height: 1.4,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      desc,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FBFF),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.arrow_forward_ios,
-                  size: 14,
-                  color: iconColor,
-                ),
+              Icon(
+                Icons.arrow_forward_ios,
+                size: 12,
+                color: Colors.grey.shade400,
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  // Widget xây dựng divider
-  Widget _buildDivider() {
-    return Padding(
-      padding: const EdgeInsets.only(left: 76),
-      child: Container(
-        height: 1,
-        color: const Color(0xFFF0F0F0),
       ),
     );
   }

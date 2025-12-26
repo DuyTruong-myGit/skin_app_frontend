@@ -25,9 +25,9 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _widgetOptions = [];
   final List<BottomNavigationBarItem> _navBarItems = [];
 
-  // === 1. BIẾN ĐỂ LƯU VỊ TRÍ NÚT CHAT ===
-  Offset _fabOffset = const Offset(300, 600); // Vị trí mặc định tạm thời
-  bool _isFabInitialized = false; // Cờ để kiểm tra đã set vị trí ban đầu chưa
+  // === 1. BIẾN ĐỂ LƯU VỊ TRÍ NÚT CHAT (LOGIC GIỮ NGUYÊN) ===
+  Offset _fabOffset = const Offset(300, 600);
+  bool _isFabInitialized = false;
 
   @override
   void initState() {
@@ -39,6 +39,7 @@ class _MainScreenState extends State<MainScreen> {
     setState(() => _selectedIndex = index);
   }
 
+  // === LOGIC PHÂN QUYỀN (GIỮ NGUYÊN) ===
   Future<void> _checkUserRoleAndBuildTabs() async {
     final role = await _storage.read(key: 'role');
     setState(() {
@@ -92,39 +93,29 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // === 2. TÍNH TOÁN VỊ TRÍ BAN ĐẦU (GÓC DƯỚI PHẢI) ===
+    // === 2. TÍNH TOÁN VỊ TRÍ BAN ĐẦU (LOGIC GIỮ NGUYÊN) ===
     if (!_isFabInitialized) {
       final screenSize = MediaQuery.of(context).size;
-      // Đặt mặc định cách phải 20, cách dưới 20
       _fabOffset = Offset(screenSize.width - 84, screenSize.height - 160);
       _isFabInitialized = true;
     }
 
+    // Màn hình Loading khi chưa load xong Tab
     if (_navBarItems.isEmpty) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF8FBFF),
+        backgroundColor: const Color(0xFFF9FAFB), // Màu nền chuẩn Design System
         body: Center(
           child: Container(
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF0066CC), Color(0xFF00B4D8)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF0066CC).withOpacity(0.3),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              border: Border.all(color: Colors.grey.shade300), // Viền chuẩn style Card
             ),
             child: const Center(
               child: CircularProgressIndicator(
-                color: Colors.white,
+                color: Color(0xFF0066CC), // Màu Primary
                 strokeWidth: 3,
               ),
             ),
@@ -134,11 +125,12 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FBFF),
-      // === 3. BỌC BODY TRONG STACK ===
+      backgroundColor: const Color(0xFFF9FAFB), // Màu nền chuẩn Design System
+
+      // === 3. STACK BODY (LOGIC GIỮ NGUYÊN) ===
       body: Stack(
         children: [
-          // Lớp dưới cùng: Nội dung chính của App
+          // Lớp dưới cùng: Nội dung chính
           Column(
             children: [
               const NetworkBanner(),
@@ -151,25 +143,21 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
 
-          // Lớp trên cùng: Nút Chatbot di chuyển được
+          // Lớp trên cùng: Nút Chatbot Draggable
           Positioned(
             left: _fabOffset.dx,
             top: _fabOffset.dy,
             child: GestureDetector(
-              // Sự kiện kéo thả
+              // Logic kéo thả giữ nguyên
               onPanUpdate: (details) {
                 setState(() {
                   final screenSize = MediaQuery.of(context).size;
-                  // Tính toán vị trí mới
                   double newX = _fabOffset.dx + details.delta.dx;
                   double newY = _fabOffset.dy + details.delta.dy;
 
-                  // Giới hạn không cho kéo ra khỏi màn hình
-                  // 64 là kích thước nút, chừa lề một chút
                   if (newX < 0) newX = 0;
                   if (newX > screenSize.width - 64) newX = screenSize.width - 64;
                   if (newY < 0) newY = 0;
-                  // Trừ đi chiều cao BottomBar (khoảng 60-80) để không bị che
                   if (newY > screenSize.height - 140) newY = screenSize.height - 140;
 
                   _fabOffset = Offset(newX, newY);
@@ -181,21 +169,23 @@ class _MainScreenState extends State<MainScreen> {
                   MaterialPageRoute(builder: (context) => const ChatScreen()),
                 );
               },
+              // UI Nút Chat: Update theo Design System (Gradient + Viền trắng)
               child: Container(
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF0066CC), Color(0xFF00B4D8)],
+                    colors: [Color(0xFF0066CC), Color(0xFF00B4D8)], // Primary -> Secondary
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2), // Viền trắng nổi bật
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF0066CC).withOpacity(0.4),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
+                      color: const Color(0xFF0066CC).withOpacity(0.3), // Shadow nhẹ hơn
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
@@ -203,27 +193,21 @@ class _MainScreenState extends State<MainScreen> {
                   alignment: Alignment.center,
                   children: [
                     const Icon(
-                      Icons.psychology_outlined,
+                      Icons.psychology_outlined, // Icon AI
                       color: Colors.white,
-                      size: 30,
+                      size: 32,
                     ),
+                    // Indicator online (Chấm xanh lá)
                     Positioned(
-                      top: 10,
-                      right: 10,
+                      top: 12,
+                      right: 12,
                       child: Container(
-                        width: 12,
-                        height: 12,
+                        width: 10,
+                        height: 10,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF4CAF50),
+                          color: const Color(0xFF4CAF50), // Green Success
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF4CAF50).withOpacity(0.6),
-                              blurRadius: 8,
-                              spreadRadius: 1,
-                            ),
-                          ],
+                          border: Border.all(color: Colors.white, width: 1.5),
                         ),
                       ),
                     ),
@@ -235,9 +219,7 @@ class _MainScreenState extends State<MainScreen> {
         ],
       ),
 
-      // === 4. ĐÃ XÓA THUỘC TÍNH floatingActionButton Ở ĐÂY ===
-
-      // === BOTTOM NAVIGATION BAR (GIỮ NGUYÊN) ===
+      // === BOTTOM NAVIGATION BAR (UPDATE THEO DESIGN SYSTEM) ===
       bottomNavigationBar: Theme(
         data: Theme.of(context).copyWith(
           splashColor: Colors.transparent,
@@ -246,17 +228,12 @@ class _MainScreenState extends State<MainScreen> {
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 16,
-                offset: const Offset(0, -4),
-              ),
-            ],
+            // Thay thế BoxShadow đậm bằng Border nhẹ phía trên để clean hơn
+            border: Border(top: BorderSide(color: Colors.grey.shade300, width: 1)),
           ),
           child: SafeArea(
             child: SizedBox(
-              height: 60,
+              height: 60, // Chiều cao thanh điều hướng
               child: BottomNavigationBar(
                 items: _navBarItems,
                 currentIndex: _selectedIndex,
@@ -267,8 +244,10 @@ class _MainScreenState extends State<MainScreen> {
                 elevation: 0,
                 selectedFontSize: 11.0,
                 unselectedFontSize: 11.0,
+                // Màu Primary cho Active
                 selectedItemColor: const Color(0xFF0066CC),
-                unselectedItemColor: const Color(0xFF999999),
+                // Màu Grey.shade600 cho Inactive (theo prompt)
+                unselectedItemColor: Colors.grey.shade600,
                 selectedLabelStyle: const TextStyle(
                   fontWeight: FontWeight.w600,
                   height: 1.2,

@@ -44,23 +44,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // === HÀM XỬ LÝ CHUNG: LƯU TOKEN VÀ ĐIỀU HƯỚNG ===
   Future<void> _processLoginSuccess(String token) async {
-    // 1. Lưu Token
+    // 1. Lưu token
     await _storage.write(key: 'token', value: token);
 
-    // Gửi FCM Token lên server để bắt đầu nhận thông báo
+    // 2. Đồng bộ notification token
     await PushNotificationService.syncTokenToServer();
 
-    // 2. Giải mã Token
-    Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+    // 3. Giải mã JWT (Luôn là Map)
+    final Map<String, dynamic> decoded = JwtDecoder.decode(token);
 
-    // 3. Lấy role (mặc định là 'user' nếu không có)
-    String userRole = decodedToken['role'] ?? 'user';
+    // 4. Lấy dữ liệu an toàn (Dùng toString() để tránh lỗi kiểu dữ liệu từ Backend)
+    // Lưu ý: Kiểm tra chính xác tên trường 'role' và 'userId' trong Payload của bạn
+    String userRole = (decoded['role'] ?? 'user').toString();
+    String userId = (decoded['userId'] ?? '').toString();
 
-    // 4. Lưu User ID
-    String userId = decodedToken['userId'].toString();
+    // 5. Lưu thông tin User
     await _storage.write(key: 'userId', value: userId);
-
-    // 5. Lưu Role
     await _storage.write(key: 'role', value: userRole);
 
     if (mounted) {
