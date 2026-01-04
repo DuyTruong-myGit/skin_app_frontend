@@ -14,6 +14,7 @@ import 'package:path/path.dart' as path;
 import 'package:intl/intl.dart';
 import 'package:app/services/google_auth_service.dart';
 import 'package:app/services/socket_service.dart';
+import 'package:app/services/ai_handler.dart';
 class ApiService {
   final Dio _dio = Dio();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
@@ -138,81 +139,168 @@ class ApiService {
     }
   }
 
+  // Future<Map<String, dynamic>> diagnose(XFile imageFile) async {
+  //   try {
+  //     // === 1. RESIZE & COMPRESS ẢNH ===
+  //     print('🔄 Đang xử lý ảnh...');
+  //     File file = File(imageFile.path);
+  //
+  //     // Validate kích thước
+  //     bool isValidSize = await ImageHelper.validateFileSize(file);
+  //     if (!isValidSize) {
+  //       throw 'Ảnh quá lớn (>10MB). Vui lòng chọn ảnh khác.';
+  //     }
+  //
+  //     // Resize và compress
+  //     File optimizedFile = await ImageHelper.resizeAndCompressImage(file);
+  //     print('✅ Ảnh đã được tối ưu hóa');
+  //     // ================================
+  //
+  //     // 2. Chuẩn bị FormData
+  //     String fileName = path.basename(optimizedFile.path);
+  //     FormData formData = FormData.fromMap({
+  //       "image": await MultipartFile.fromFile(
+  //         optimizedFile.path,
+  //         filename: fileName,
+  //       ),
+  //     });
+  //
+  //     // 3. Gọi API
+  //     print('📤 Đang gửi ảnh lên server...');
+  //     final response = await _dio.post(
+  //       '/diagnose',
+  //       data: formData,
+  //       options: await _getAuthHeaders(),
+  //     );
+  //
+  //     print('✅ Nhận được kết quả từ server');
+  //
+  //     // === 4. XỬ LÝ RESPONSE MỚI ===
+  //     final result = response.data as Map<String, dynamic>;
+  //
+  //     // Kiểm tra nếu ảnh không hợp lệ
+  //     if (result['success'] == false || result['is_valid_skin_image'] == false) {
+  //       throw result['description'] ?? 'Ảnh không hợp lệ';
+  //     }
+  //
+  //     return result;
+  //     // ============================
+  //
+  //   } on DioException catch (e) {
+  //     print('❌ DioException: ${e.response?.statusCode}');
+  //
+  //     if (e.response != null) {
+  //       // Backend trả về lỗi validation
+  //       final errorData = e.response!.data;
+  //
+  //       if (errorData is Map) {
+  //         if (errorData['description'] != null) {
+  //           throw errorData['description']; // <--- Ưu tiên lấy description
+  //         }
+  //         if (errorData['message'] != null) {
+  //           throw errorData['message'];
+  //         }
+  //       }
+  //
+  //       throw 'Lỗi từ server: ${e.response!.statusCode}';
+  //     }
+  //
+  //     if (e.type == DioExceptionType.connectionTimeout ||
+  //         e.type == DioExceptionType.receiveTimeout) {
+  //       throw 'Timeout: Server AI đang khởi động. Vui lòng thử lại sau 30 giây.';
+  //     }
+  //
+  //     throw 'Không thể kết nối đến máy chủ. Kiểm tra kết nối mạng.';
+  //   } catch (e) {
+  //     print('❌ Error: $e');
+  //     throw 'Đã xảy ra lỗi: $e';
+  //   }
+  // }
   Future<Map<String, dynamic>> diagnose(XFile imageFile) async {
+    Map<String, dynamic> aiResult = {};
+    File file = File(imageFile.path);
+
     try {
-      // === 1. RESIZE & COMPRESS ẢNH ===
-      print('🔄 Đang xử lý ảnh...');
-      File file = File(imageFile.path);
+      print('🔄 1. Đang chạy AI Offline...');
+      // Gọi AI Handler (đã sửa lỗi softmax)
+      aiResult = await AiHandler().predictDisease(file);
+      print("✅ Kết quả AI: ${aiResult['class']} (${aiResult['confidence_percent']})");
 
-      // Validate kích thước
-      bool isValidSize = await ImageHelper.validateFileSize(file);
-      if (!isValidSize) {
-        throw 'Ảnh quá lớn (>10MB). Vui lòng chọn ảnh khác.';
-      }
+      // Gửi lên Server để lưu (chỉ khi có mạng)
+      print('☁️ 2. Đang đồng bộ lên Server...');
+      String fileName = path.basename(file.path);
 
-      // Resize và compress
-      File optimizedFile = await ImageHelper.resizeAndCompressImage(file);
-      print('✅ Ảnh đã được tối ưu hóa');
-      // ================================
-
-      // 2. Chuẩn bị FormData
-      String fileName = path.basename(optimizedFile.path);
       FormData formData = FormData.fromMap({
-        "image": await MultipartFile.fromFile(
-          optimizedFile.path,
-          filename: fileName,
-        ),
+        "image": await MultipartFile.fromFile(file.path, filename: fileName),
+        // [QUAN TRỌNG] Gửi kèm kết quả AI lên để Backend lưu
+        "ai_result": jsonEncode(aiResult),
       });
 
-      // 3. Gọi API
-      print('📤 Đang gửi ảnh lên server...');
       final response = await _dio.post(
         '/diagnose',
         data: formData,
         options: await _getAuthHeaders(),
       );
 
-      print('✅ Nhận được kết quả từ server');
-
-      // === 4. XỬ LÝ RESPONSE MỚI ===
-      final result = response.data as Map<String, dynamic>;
-
-      // Kiểm tra nếu ảnh không hợp lệ
-      if (result['success'] == false || result['is_valid_skin_image'] == false) {
-        throw result['description'] ?? 'Ảnh không hợp lệ';
-      }
-
-      return result;
-      // ============================
+      // Nếu thành công, Server sẽ trả về dữ liệu đầy đủ (có tiếng Việt, risk_level...)
+      return response.data;
 
     } on DioException catch (e) {
-      print('❌ DioException: ${e.response?.statusCode}');
-
-      if (e.response != null) {
-        // Backend trả về lỗi validation
-        final errorData = e.response!.data;
-
-        if (errorData is Map) {
-          if (errorData['description'] != null) {
-            throw errorData['description']; // <--- Ưu tiên lấy description
-          }
-          if (errorData['message'] != null) {
-            throw errorData['message'];
-          }
-        }
-
-        throw 'Lỗi từ server: ${e.response!.statusCode}';
-      }
-
-      if (e.type == DioExceptionType.connectionTimeout ||
-          e.type == DioExceptionType.receiveTimeout) {
-        throw 'Timeout: Server AI đang khởi động. Vui lòng thử lại sau 30 giây.';
-      }
-
-      throw 'Không thể kết nối đến máy chủ. Kiểm tra kết nối mạng.';
+      print("⚠️ Lỗi kết nối Server: ${e.message}. Dùng kết quả Offline.");
+      // Fallback: Tự tạo dữ liệu hiển thị nếu server lỗi
+      return _createOfflineFallbackResult(aiResult, imageFile.path);
     } catch (e) {
-      print('❌ Error: $e');
-      throw 'Đã xảy ra lỗi: $e';
+      print("❌ Lỗi khác: $e");
+      if (aiResult.isNotEmpty) return _createOfflineFallbackResult(aiResult, imageFile.path);
+      rethrow;
+    }
+  }
+// Hàm hỗ trợ tạo dữ liệu giả lập khi mất mạng
+  Map<String, dynamic> _createOfflineFallbackResult(Map<String, dynamic> aiResult, String imagePath) {
+    return {
+      "success": true,
+      "is_offline_mode": true, // Cờ để UI biết đang offline
+      "image_url": imagePath,  // Dùng đường dẫn file nội bộ thay vì URL mạng
+      "disease_name": aiResult['class'],
+      "disease_name_vi": aiResult['class'], // Tạm thời hiển thị tên tiếng Anh hoặc mapping cứng ở đây
+      "confidence_score": aiResult['confidence'],
+      "risk_level": _mapRiskLevel(aiResult['class']), // Hàm tự viết để map mức độ nguy hiểm
+      "description": "Kết quả chẩn đoán offline. Vui lòng kết nối mạng để xem thông tin chi tiết đầy đủ.",
+      "recommendation": "Vui lòng đi khám bác sĩ để có kết luận chính xác.",
+    };
+  }
+
+// Hàm map nhanh mức độ nguy hiểm (tùy chọn)
+  String _mapRiskLevel(String diseaseClass) {
+    // Nhóm nguy hiểm
+    if (['Melanoma', 'Basal Cell Carcinoma', 'Squamous Cell Carcinoma'].contains(diseaseClass)) {
+      return 'high';
+    }
+    // Nhóm an toàn (Thêm Unknown_Normal vào đây)
+    else if (['Normal Skin', 'Nevus', 'Unknown_Normal'].contains(diseaseClass)) {
+      return 'low'; // Trả về low để hiện màu xanh/xám
+    }
+    // Còn lại là trung bình
+    return 'medium';
+  }
+
+  // SỬA HÀM NÀY (Cập nhật tên tiếng Việt)
+  String _mapEnglishToVietnamese(String className) {
+    switch (className) {
+      case 'Actinic Keratosis': return 'Dày sừng quang hóa';
+      case 'Basal Cell Carcinoma': return 'Ung thư tế bào đáy';
+      case 'Dermato Fibroma': return 'U xơ da';
+      case 'Melanoma': return 'Ung thư hắc tố (Melanoma)';
+      case 'Nevus': return 'Nốt ruồi (Nevus)';
+      case 'Normal Skin': return 'Da bình thường';
+      case 'Pigmented Benign Keratosis': return 'Dày sừng da dầu';
+      case 'Ringworm': return 'Hắc lào (Nấm da)';
+      case 'Seborrheic Keratosis': return 'Dày sừng tiết bã';
+      case 'Squamous Cell Carcinoma': return 'Ung thư tế bào vảy';
+      case 'Vascular Lesion': return 'Tổn thương mạch máu';
+    // Sửa dòng này:
+      case 'Unknown_Normal': return 'Không xác định / Ảnh lỗi';
+      default: return className;
     }
   }
 
