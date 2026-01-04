@@ -1,0 +1,12 @@
+Actinic Keratosis
+Basal Cell Carcinoma
+Dermato Fibroma
+Melanoma
+Nevus
+Normal Skin
+Pigmented Benign Keratosis
+Ringworm
+Seborrheic Keratosis
+Squamous Cell Carcinoma
+Unknown_Normal
+Vascular Lesion

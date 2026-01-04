@@ -192,8 +192,13 @@ class ApiService {
         // Backend trả về lỗi validation
         final errorData = e.response!.data;
 
-        if (errorData is Map && errorData['message'] != null) {
-          throw errorData['message'];
+        if (errorData is Map) {
+          if (errorData['description'] != null) {
+            throw errorData['description']; // <--- Ưu tiên lấy description
+          }
+          if (errorData['message'] != null) {
+            throw errorData['message'];
+          }
         }
 
         throw 'Lỗi từ server: ${e.response!.statusCode}';
@@ -205,7 +210,6 @@ class ApiService {
       }
 
       throw 'Không thể kết nối đến máy chủ. Kiểm tra kết nối mạng.';
-
     } catch (e) {
       print('❌ Error: $e');
       throw 'Đã xảy ra lỗi: $e';
@@ -216,28 +220,42 @@ class ApiService {
   // Trả về một List các đối tượng DiagnosisRecord
   Future<List<DiagnosisRecord>> getHistory() async {
     try {
-      // 1. Gửi request (đã kèm token)
       final response = await _dio.get(
         '/diagnose/history',
-        options: await _getAuthHeaders(), // Lấy header có token
+        options: await _getAuthHeaders(),
       );
 
-      // 2. Chuyển đổi List<dynamic> (từ JSON) sang List<DiagnosisRecord>
-      List<DiagnosisRecord> historyList = (response.data as List)
+      // === [ĐÃ SỬA] Xử lý linh hoạt cả Map và List ===
+      List<dynamic> rawList = [];
+
+      // Trường hợp 1: Backend trả về { "success": true, "data": [...] } (Backend hiện tại của bạn)
+      if (response.data is Map<String, dynamic>) {
+        if (response.data['data'] != null) {
+          rawList = response.data['data'];
+        } else {
+          rawList = []; // Không có key 'data'
+        }
+      }
+      // Trường hợp 2: Backend trả về trực tiếp [...] (Dự phòng)
+      else if (response.data is List) {
+        rawList = response.data;
+      }
+
+      // Map sang Model
+      List<DiagnosisRecord> historyList = rawList
           .map((item) => DiagnosisRecord.fromJson(item))
           .toList();
 
-      // 3. Trả về danh sách
       return historyList;
 
     } on DioException catch (e) {
-      // Lỗi 401 sẽ được Interceptor xử lý
       if (e.response != null && e.response?.statusCode != 401) {
-        throw e.response!.data['message'];
+        throw e.response!.data['message'] ?? 'Lỗi tải lịch sử';
       }
       throw 'Không thể kết nối đến máy chủ.';
     } catch (e) {
-      throw 'Đã xảy ra lỗi không xác định: $e';
+      print('Lỗi parse history: $e'); // Log để debug nếu cần
+      throw 'Đã xảy ra lỗi xử lý dữ liệu: $e';
     }
   }
 

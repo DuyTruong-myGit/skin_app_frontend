@@ -1,3 +1,4 @@
+import 'dart:convert';
 class DiagnosisRecord {
   final int historyId;
   final int userId;
@@ -25,17 +26,17 @@ class DiagnosisRecord {
       imageUrl: json['image_url'],
       diseaseName: json['disease_name'],
 
-      // === SỬA LỖI Ở ĐÂY ===
-      // Chuyển đổi an toàn:
-      // 1. Kiểm tra null
-      // 2. Chuyển sang String (dù là String hay num)
-      // 3. Dùng tryParse (an toàn) để chuyển sang double
       confidenceScore: json['confidence_score'] == null
           ? null
           : double.tryParse(json['confidence_score'].toString()),
-      // =======================
 
-      resultJson: json['result_json'],
+      // === [ĐÃ SỬA] Xử lý an toàn cho result_json ===
+      // Backend có thể trả về String JSON hoặc đã parse sẵn thành Map
+      resultJson: json['result_json'] is Map
+          ? jsonEncode(json['result_json']) // Nếu là Map thì chuyển ngược về String
+          : json['result_json']?.toString(), // Nếu là String hoặc null
+      // ============================================
+
       diagnosedAt: DateTime.parse(json['diagnosed_at']),
     );
   }

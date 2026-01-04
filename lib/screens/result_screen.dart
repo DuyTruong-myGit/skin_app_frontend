@@ -1,13 +1,12 @@
 import 'dart:io';
 import 'dart:typed_data';
-
 import 'package:app/screens/disease/disease_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
-
+import 'package:app/screens/safety_check_screen.dart';
 class ResultScreen extends StatefulWidget {
   final Map<String, dynamic> diagnosisResult;
   final String? imageUrl; // Đã thêm tham số này để nhận ảnh từ History
@@ -27,13 +26,14 @@ class _ResultScreenState extends State<ResultScreen> {
   bool _isSharing = false;
 
   // --- 1. LOGIC CHỌN MÀU THEO MỨC ĐỘ NGUY HIỂM ---
-  // Thay vì màu xanh cố định, màu sắc sẽ dựa hoàn toàn vào risk_level
+  // Đã cập nhật: Thêm case 'medium' để xử lý đồng bộ dữ liệu cũ/mới
   Color _getThemeColor(String? riskLevel) {
     switch (riskLevel?.toLowerCase()) {
       case 'critical':
       case 'high':
         return const Color(0xFFD32F2F); // Đỏ đậm (Nguy hiểm)
       case 'moderate':
+      case 'medium': // <--- ĐÃ THÊM: Fix lỗi hiển thị màu xám khi backend trả về 'medium'
         return const Color(0xFFF57C00); // Cam (Cảnh báo)
       case 'low':
       case 'none':
@@ -47,7 +47,8 @@ class _ResultScreenState extends State<ResultScreen> {
     switch (riskLevel?.toLowerCase()) {
       case 'critical': return 'RẤT NGUY HIỂM';
       case 'high': return 'NGUY CƠ CAO';
-      case 'moderate': return 'CẦN THEO DÕI';
+      case 'moderate':
+      case 'medium': return 'CẦN THEO DÕI'; // <--- ĐÃ THÊM: Fix lỗi hiển thị text "Chưa rõ mức độ"
       case 'low': return 'LÀNH TÍNH';
       case 'none': return 'DA KHỎE MẠNH';
       default: return 'CHƯA RÕ MỨC ĐỘ';
@@ -183,7 +184,9 @@ class _ResultScreenState extends State<ResultScreen> {
     final String diseaseNameEn = widget.diagnosisResult['disease_name'] ?? 'Unknown';
     final String diseaseNameVi = widget.diagnosisResult['disease_name_vi'] ?? 'Kết quả chẩn đoán';
     final String riskLevel = widget.diagnosisResult['risk_level'] ?? 'unknown';
-    final String recommendation = widget.diagnosisResult['recommendation'] ?? 'Vui lòng tham khảo ý kiến bác sĩ.';
+
+    // --- ĐÃ SỬA: Gán cứng lời khuyên theo yêu cầu ---
+    const String recommendation = 'Vui lòng tham khảo ý kiến bác sĩ chuyên khoa da liễu để được chẩn đoán chính xác.';
 
     final dynamic rawScore = widget.diagnosisResult['confidence_score'];
     final double confidence = (rawScore is num) ? rawScore.toDouble() * 100 : 0.0;
@@ -416,40 +419,127 @@ class _ResultScreenState extends State<ResultScreen> {
                     ),
                   ),
 
+                if (widget.diagnosisResult['top3_predictions'] != null)
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.analytics_outlined, size: 20, color: Colors.grey[700]),
+                            const SizedBox(width: 8),
+                            const Text("Top 3 Chẩn đoán", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        ...List.generate(
+                          (widget.diagnosisResult['top3_predictions'] as List).length,
+                              (index) {
+                            final pred = widget.diagnosisResult['top3_predictions'][index];
+                            final confidence = (pred['confidence'] * 100).toStringAsFixed(1);
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: index == 0 ? themeColor : Colors.grey[300],
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '${index + 1}',
+                                        style: TextStyle(
+                                          color: index == 0 ? Colors.white : Colors.black,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      pred['class'],
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: index == 0 ? FontWeight.bold : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    '$confidence%',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: themeColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
                 const SizedBox(height: 30),
 
                 // 5. Nút chức năng
                 if (!_isSharing) ...[
                   // Nút Xem chi tiết
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const SafetyCheckScreen()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white, // Nền trắng
+                        foregroundColor: const Color(0xFFD32F2F), // Chữ đỏ
+                        side: const BorderSide(color: Color(0xFFD32F2F), width: 1.5), // Viền đỏ
+                        minimumSize: const Size(double.infinity, 52),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.security_rounded),
+                      label: const Text(
+                        'Kiểm tra dấu hiệu nguy hiểm',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+
                   if (!isHealthy && widget.diagnosisResult['info_id'] != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                       child: ElevatedButton.icon(
                         onPressed: () => _navigateToDetail(themeColor),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: themeColor,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(double.infinity, 52),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
-                        ),
+                        style: ElevatedButton.styleFrom(backgroundColor: themeColor, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
                         icon: const Icon(Icons.article_rounded),
                         label: const Text('Xem bài viết chi tiết', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                       ),
                     ),
 
-                  // Nút Tìm bác sĩ (Chỉ hiện nếu không phải da an toàn)
                   if (!isHealthy)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                       child: OutlinedButton.icon(
                         onPressed: () => _showMapOptions(themeColor),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: themeColor,
-                          side: BorderSide(color: themeColor),
-                          minimumSize: const Size(double.infinity, 52),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
+                        style: OutlinedButton.styleFrom(foregroundColor: themeColor, side: BorderSide(color: themeColor), minimumSize: const Size(double.infinity, 52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                         icon: const Icon(Icons.location_on_outlined),
                         label: const Text('Tìm cơ sở y tế gần đây', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                       ),
